@@ -654,12 +654,45 @@ function handleLoginIdentity(email, name) {
   notify('This Google account is not registered as EB/admin.', true);
 }
 
+function decodeJwtPayload(token) {
+  const base64Url = token.split('.')[1];
+  const base64 = base64Url
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+
+  const padded = base64.padEnd(
+    base64.length + (4 - base64.length % 4) % 4,
+    '='
+  );
+
+  const jsonPayload = decodeURIComponent(
+    atob(padded)
+      .split('')
+      .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+      .join('')
+  );
+
+  return JSON.parse(jsonPayload);
+}
+
 function handleEBLogin(response) {
   try {
-    const payload = JSON.parse(atob(response.credential.split('.')[1]));
-    handleLoginIdentity(payload.email, payload.name);
+    if (!response || !response.credential) {
+      notify('No Google credential received.', true);
+      return;
+    }
+
+    const payload = decodeJwtPayload(response.credential);
+
+    if (!payload.email) {
+      notify('Google login did not return an email.', true);
+      return;
+    }
+
+    handleLoginIdentity(payload.email, payload.name || payload.email);
   } catch(e) {
-    notify('Login failed. Try again.', true);
+    console.error('Google login decode error:', e);
+    notify('Login failed. Check console for details.', true);
   }
 }
 
