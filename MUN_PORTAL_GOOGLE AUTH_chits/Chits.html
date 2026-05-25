@@ -1,0 +1,1551 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polaris MUN — Chit System</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<!-- ═══════════════════════════════════════════════════
+  CONFIGURATION — FILL THIS IN BEFORE DEPLOYING
+  ═══════════════════════════════════════════════════ -->
+<script src="https://accounts.google.com/gsi/client" defer></script>
+<script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-auth-compat.js"></script>
+
+
+<script>
+const CONFIG = {
+  GOOGLE_CLIENT_ID: '155440301105-8l928akjmurv0d3v39sse19n34gqtpeh.apps.googleusercontent.com',
+  ADMIN_EMAIL: 'thepolarismun@gmail.com',
+  ADMIN_EMAILS: ['thepolarismun@gmail.com'],
+
+  USE_FIREBASE: true,
+
+  // Firebase Realtime Database config
+  FIREBASE: {
+    apiKey: 'AIzaSyDpHxAhym6btvCYluL14qqF2WZ4ZYOuhJs',
+    authDomain: 'the-polaris-mun-71844.firebaseapp.com',
+    databaseURL: 'https://the-polaris-mun-71844-default-rtdb.asia-southeast1.firebasedatabase.app',
+    projectId: 'the-polaris-mun-71844',
+    appId: '1:276641968344:web:b4857f47794efbb3d327ad',
+  },
+
+  COMMITTEES: ['MSC','DISEC','UNGA','UNSC','UNHRC'],
+  DIRECTIVES_ALWAYS: ['MSC'],
+  DIRECTIVES_TOGGLE: ['DISEC'],
+
+  // EB Google accounts — map email to committee + role
+  EB_ACCOUNTS: {
+    'akshaypro28@gmail.com': { committee: 'MSC', role: 'Chair' },
+    // Add each committee EB here. Marker Assignments uses these roles.
+    // 'mscvice@gmail.com': { committee: 'MSC', role: 'Vice Chair' },
+    // 'mscrapporteur@gmail.com': { committee: 'MSC', role: 'Rapporteur' },
+    // 'disecchair@gmail.com': { committee: 'DISEC', role: 'Chair' },
+  },
+};
+
+// Firebase Init
+firebase.initializeApp(CONFIG.FIREBASE);
+
+const db = firebase.database();
+const auth = firebase.auth();
+</script>
+<style>
+:root {
+  --ink:    #0a0d1a;
+  --mid:    #111827;
+  --card:   #0f172a;
+  --card2:  #1a2035;
+  --gold:   #c9a84c;
+  --gold-lt:#e8d08a;
+  --teal:   #2dd4bf;
+  --silver: #94a3b8;
+  --mist:   #e2e8f0;
+  --white:  #f8fafc;
+  --danger: #ef4444;
+  --amber:  #fbbf24;
+  --purple: #a855f7;
+  --green:  #22c55e;
+  --indigo: #818cf8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--ink);
+  background-image:radial-gradient(circle at 50% 10%,#1a2035 0%,var(--ink) 70%);
+  font-family:'Crimson Pro',Georgia,serif;
+  color:var(--white);
+  min-height:100vh;
+  padding-bottom:60px;
+}
+
+/* ── GRID MOTIF ── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:
+    repeating-linear-gradient(0deg,rgba(45,212,191,0.02) 0px,rgba(45,212,191,0.02) 1px,transparent 1px,transparent 52px),
+    repeating-linear-gradient(90deg,rgba(45,212,191,0.02) 0px,rgba(45,212,191,0.02) 1px,transparent 1px,transparent 52px);
+  pointer-events:none;z-index:0;
+}
+
+/* ── TOP BAR ── */
+.top-bar{height:4px;background:linear-gradient(90deg,transparent,var(--gold),transparent);position:fixed;top:0;width:100%;z-index:100;}
+
+/* ── SITE HEADER ── */
+.site-header{
+  position:fixed;top:4px;left:0;right:0;
+  background:rgba(10,13,26,0.95);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(201,168,76,0.15);
+  padding:10px 20px;
+  display:flex;align-items:center;gap:12px;
+  z-index:99;
+}
+.header-logo{width:36px;height:36px;border:1.5px solid var(--gold);border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--mid);}
+.header-logo img{width:32px;height:32px;object-fit:cover;border-radius:50%;}
+.header-name{font-family:'Cinzel',serif;font-size:14px;font-weight:700;color:var(--gold);}
+.header-sub{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:2px;color:var(--teal);text-transform:uppercase;}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.header-user{font-family:'Space Mono',monospace;font-size:8px;color:var(--silver);letter-spacing:1px;}
+.header-badge{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1px;padding:3px 8px;border:1px solid rgba(45,212,191,0.3);color:var(--teal);text-transform:uppercase;}
+
+/* ── MAIN ── */
+.main{max-width:720px;margin:0 auto;padding:80px 16px 20px;position:relative;z-index:1;}
+
+/* ── SCREENS ── */
+.screen{display:none;}
+.screen.active{display:block;}
+
+/* ── SECTION TITLES ── */
+.eyebrow{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:4px;color:var(--teal);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:10px;}
+.eyebrow::after{content:'';flex:1;height:1px;background:rgba(45,212,191,0.18);}
+.page-title{font-family:'Cinzel',serif;font-size:24px;font-weight:700;color:var(--gold);margin-bottom:6px;}
+.page-sub{font-family:'Crimson Pro',serif;font-size:13.5px;color:var(--silver);margin-bottom:24px;line-height:1.6;}
+.section-rule{width:50px;height:2px;background:var(--teal);margin-bottom:20px;}
+
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid rgba(201,168,76,0.15);padding:20px;margin-bottom:14px;}
+.card-gold{border-left:3px solid var(--gold);}
+.card-teal{border-left:3px solid var(--teal);}
+.card-danger{border-left:3px solid var(--danger);}
+.card-purple{border-left:3px solid var(--purple);}
+.card-amber{border-left:3px solid var(--amber);}
+.card-green{border-left:3px solid var(--green);}
+.card-title{font-family:'Cinzel',serif;font-size:13px;font-weight:600;color:var(--white);margin-bottom:4px;}
+.card-sub{font-family:'Space Mono',monospace;font-size:7.5px;letter-spacing:1.5px;color:var(--silver);text-transform:uppercase;margin-bottom:10px;}
+
+/* ── CHIT TYPE BUTTONS ── */
+.chit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+.chit-btn{
+  background:var(--card);border:1px solid rgba(255,255,255,0.08);
+  padding:18px 16px;cursor:pointer;text-align:left;
+  transition:all 0.2s;position:relative;overflow:hidden;
+}
+.chit-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.4);}
+.chit-btn .cb-icon{font-size:22px;margin-bottom:8px;display:block;}
+.chit-btn .cb-title{font-family:'Cinzel',serif;font-size:11px;font-weight:600;color:var(--white);display:block;margin-bottom:3px;}
+.chit-btn .cb-desc{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1px;color:var(--silver);text-transform:uppercase;}
+.chit-btn.poi{border-top:2px solid var(--teal);}
+.chit-btn.d2d{border-top:2px solid var(--indigo);}
+.chit-btn.sub{border-top:2px solid var(--gold);}
+.chit-btn.covert{border-top:2px solid var(--purple);}
+.chit-btn.overt{border-top:2px solid var(--amber);}
+.chit-btn.disabled{opacity:0.35;cursor:not-allowed;pointer-events:none;}
+
+/* ── FORM ELEMENTS ── */
+.form-group{margin-bottom:14px;}
+.form-label{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--teal);text-transform:uppercase;display:block;margin-bottom:6px;}
+.form-input,.form-select,.form-textarea{
+  width:100%;background:var(--card2);border:1px solid rgba(201,168,76,0.2);
+  color:var(--white);font-family:'Crimson Pro',serif;font-size:14px;
+  padding:10px 14px;outline:none;transition:border-color 0.2s;
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--teal);}
+.form-select option{background:var(--card);}
+.form-textarea{resize:vertical;min-height:80px;line-height:1.6;}
+.form-hint{font-family:'Space Mono',monospace;font-size:7px;color:var(--silver);letter-spacing:1px;margin-top:4px;opacity:0.6;}
+
+/* ── BUTTONS ── */
+.btn-primary{
+  background:var(--gold);color:var(--ink);
+  font-family:'Space Mono',monospace;font-size:10px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  border:none;padding:12px 24px;cursor:pointer;
+  transition:all 0.2s;display:inline-block;
+}
+.btn-primary:hover{background:var(--gold-lt);}
+.btn-secondary{
+  background:transparent;color:var(--teal);
+  font-family:'Space Mono',monospace;font-size:10px;
+  letter-spacing:2px;text-transform:uppercase;
+  border:1px solid rgba(45,212,191,0.3);padding:12px 24px;cursor:pointer;
+  transition:all 0.2s;display:inline-block;
+}
+.btn-secondary:hover{background:rgba(45,212,191,0.08);}
+.btn-danger{
+  background:transparent;color:var(--danger);
+  font-family:'Space Mono',monospace;font-size:9px;
+  letter-spacing:1px;text-transform:uppercase;
+  border:1px solid rgba(239,68,68,0.3);padding:8px 14px;cursor:pointer;
+  transition:all 0.2s;
+}
+.btn-danger:hover{background:rgba(239,68,68,0.1);}
+.btn-sm{padding:7px 14px;font-size:8px;}
+.btn-ghost{background:transparent;border:none;cursor:pointer;color:var(--silver);font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;padding:6px 10px;text-transform:uppercase;}
+.btn-ghost:hover{color:var(--white);}
+
+/* ── BADGES ── */
+.badge{display:inline-block;font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1.5px;padding:3px 8px;text-transform:uppercase;border:1px solid;}
+.badge-teal{color:var(--teal);border-color:rgba(45,212,191,0.3);background:rgba(45,212,191,0.06);}
+.badge-gold{color:var(--gold);border-color:rgba(201,168,76,0.3);background:rgba(201,168,76,0.06);}
+.badge-danger{color:var(--danger);border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);}
+.badge-purple{color:var(--purple);border-color:rgba(168,85,247,0.3);background:rgba(168,85,247,0.06);}
+.badge-amber{color:var(--amber);border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.06);}
+.badge-green{color:var(--green);border-color:rgba(34,197,94,0.3);background:rgba(34,197,94,0.06);}
+.badge-silver{color:var(--silver);border-color:rgba(148,163,184,0.2);background:rgba(148,163,184,0.04);}
+
+/* ── CHIT ITEMS ── */
+.chit-item{background:var(--card);border:1px solid rgba(255,255,255,0.07);padding:14px 16px;margin-bottom:10px;position:relative;}
+.chit-item-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.chit-from{font-family:'Cinzel',serif;font-size:11px;font-weight:600;color:var(--white);}
+.chit-to{font-family:'Space Mono',monospace;font-size:7.5px;color:var(--silver);}
+.chit-body{font-family:'Crimson Pro',serif;font-size:13px;color:var(--mist);line-height:1.6;margin-bottom:10px;}
+.chit-time{font-family:'Space Mono',monospace;font-size:7px;color:var(--silver);opacity:0.5;letter-spacing:1px;}
+.chit-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05);}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:0;border-bottom:1px solid rgba(201,168,76,0.15);margin-bottom:20px;overflow-x:auto;}
+.tab{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;padding:10px 16px;cursor:pointer;color:var(--silver);border-bottom:2px solid transparent;white-space:nowrap;transition:all 0.2s;background:none;border-left:none;border-right:none;border-top:none;}
+.tab:hover{color:var(--white);}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+/* ── STATS TABLE ── */
+.stats-table{width:100%;border-collapse:collapse;font-family:'Space Mono',monospace;font-size:9px;}
+.stats-table th{padding:8px 12px;text-align:left;color:var(--teal);letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid rgba(201,168,76,0.2);background:var(--card);}
+.stats-table td{padding:8px 12px;color:var(--mist);border-bottom:1px solid rgba(255,255,255,0.04);font-size:10px;}
+.stats-table tr:hover td{background:rgba(255,255,255,0.02);}
+.stats-val{color:var(--gold);font-weight:700;}
+
+/* ── CRITERIA ROW ── */
+.criteria-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+.criteria-row input{flex:1;min-width:120px;}
+.criteria-row input[type=number]{width:70px;flex:none;}
+.toggle-group{display:flex;border:1px solid rgba(255,255,255,0.1);}
+.toggle-opt{padding:6px 10px;font-family:'Space Mono',monospace;font-size:7.5px;letter-spacing:1px;cursor:pointer;background:transparent;color:var(--silver);border:none;text-transform:uppercase;transition:all 0.15s;}
+.toggle-opt.active-avg{background:rgba(45,212,191,0.15);color:var(--teal);}
+.toggle-opt.active-tot{background:rgba(201,168,76,0.15);color:var(--gold);}
+
+/* ── TOGGLE SWITCH ── */
+.switch-wrap{display:flex;align-items:center;gap:12px;}
+.switch{position:relative;width:48px;height:24px;}
+.switch input{opacity:0;width:0;height:0;}
+.slider{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);transition:0.3s;}
+.slider::before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:var(--silver);transition:0.3s;}
+input:checked+.slider{background:rgba(45,212,191,0.2);border-color:var(--teal);}
+input:checked+.slider::before{transform:translateX(24px);background:var(--teal);}
+.switch-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--mist);text-transform:uppercase;}
+
+/* ── LANDING ── */
+.landing-logo{width:90px;height:90px;border:2px solid var(--gold);border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--mid);}
+.landing-logo img{width:82px;height:82px;object-fit:cover;border-radius:50%;}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:24px;}
+.role-card{background:var(--card);border:1px solid rgba(255,255,255,0.08);padding:24px 20px;cursor:pointer;text-align:center;transition:all 0.2s;}
+.role-card:hover{border-color:var(--gold);transform:translateY(-2px);}
+.role-card .rc-icon{font-size:28px;margin-bottom:10px;}
+.role-card .rc-title{font-family:'Cinzel',serif;font-size:13px;font-weight:600;color:var(--white);margin-bottom:4px;}
+.role-card .rc-sub{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1px;color:var(--silver);text-transform:uppercase;}
+.role-card.eb-card{border-top:2px solid var(--teal);}
+.role-card.del-card{border-top:2px solid var(--gold);}
+
+/* ── RESPONSE BOX ── */
+.response-box{background:rgba(45,212,191,0.04);border:1px solid rgba(45,212,191,0.2);border-left:3px solid var(--teal);padding:12px 14px;margin-top:10px;}
+.response-label{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:2px;color:var(--teal);text-transform:uppercase;margin-bottom:5px;}
+.response-text{font-family:'Crimson Pro',serif;font-size:13px;color:var(--mist);line-height:1.6;}
+
+/* ── MARK BOX ── */
+.mark-grid{display:flex;flex-direction:column;gap:6px;margin-top:10px;}
+.mark-row{display:flex;align-items:center;gap:10px;background:var(--card2);padding:8px 12px;}
+.mark-name{font-family:'Space Mono',monospace;font-size:8px;color:var(--silver);flex:1;text-transform:uppercase;letter-spacing:1px;}
+.mark-input{width:55px;background:var(--ink);border:1px solid rgba(201,168,76,0.25);color:var(--gold);font-family:'Space Mono',monospace;font-size:11px;padding:4px 8px;text-align:center;outline:none;}
+.mark-max{font-family:'Space Mono',monospace;font-size:8px;color:var(--silver);}
+.mark-type{font-family:'Space Mono',monospace;font-size:7px;padding:2px 6px;border:1px solid;text-transform:uppercase;}
+.mark-type.avg{color:var(--teal);border-color:rgba(45,212,191,0.3);}
+.mark-type.tot{color:var(--gold);border-color:rgba(201,168,76,0.3);}
+
+/* ── DIRECTIVE BADGE ── */
+.directive-label{font-family:'Cinzel',serif;font-size:11px;font-weight:700;letter-spacing:2px;padding:4px 12px;text-transform:uppercase;}
+.directive-covert{color:var(--purple);background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.3);}
+.directive-overt{color:var(--amber);background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);}
+
+/* ── EMPTY STATE ── */
+.empty-state{text-align:center;padding:40px 20px;color:var(--silver);}
+.empty-state .es-icon{font-size:32px;margin-bottom:10px;opacity:0.4;}
+.empty-state .es-text{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:0.5;}
+
+/* ── NOTIFICATION ── */
+.notif{position:fixed;bottom:24px;right:20px;z-index:200;background:var(--card);border:1px solid rgba(45,212,191,0.3);border-left:3px solid var(--teal);padding:12px 18px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--mist);max-width:300px;transform:translateY(100px);opacity:0;transition:all 0.3s;}
+.notif.show{transform:translateY(0);opacity:1;}
+.notif.error{border-color:rgba(239,68,68,0.4);border-left-color:var(--danger);color:var(--danger);}
+
+/* ── SETUP BANNER ── */
+.setup-banner{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);border-left:3px solid var(--amber);padding:12px 16px;margin-bottom:20px;}
+.setup-banner-title{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--amber);text-transform:uppercase;margin-bottom:5px;}
+.setup-banner-text{font-family:'Crimson Pro',serif;font-size:13px;color:var(--mist);line-height:1.5;}
+
+/* ── GOOGLE BTN ── */
+.google-btn{display:inline-flex;align-items:center;gap:10px;background:white;color:#1f2937;border:none;padding:11px 22px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.3);}
+.google-btn:hover{box-shadow:0 4px 16px rgba(0,0,0,0.5);transform:translateY(-1px);}
+
+@media(max-width:520px){
+  .chit-grid{grid-template-columns:1fr;}
+  .role-grid{grid-template-columns:1fr;}
+  .criteria-row{flex-direction:column;align-items:flex-start;}
+}
+</style>
+</head>
+<body>
+<div class="top-bar"></div>
+
+<!-- SITE HEADER -->
+<div class="site-header">
+  <div class="header-logo"><img src="LOGO_TEMP.jpeg" alt="Polaris MUN" onerror="this.style.display='none'"></div>
+  <div>
+    <div class="header-name">The Polaris MUN</div>
+    <div class="header-sub">Chit System</div>
+  </div>
+  <div class="header-right">
+    <span class="header-user" id="header-user-display"></span>
+    <span class="header-badge" id="header-role-badge" style="display:none"></span>
+    <button class="btn-ghost" id="header-signout" style="display:none" onclick="signOut()">Sign Out</button>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- ═══════════════ LANDING ═══════════════ -->
+<div id="screen-landing" class="screen active">
+  <div style="text-align:center;padding:20px 0 10px;">
+    <div class="landing-logo"><img src="LOGO_TEMP.jpeg" alt="Polaris MUN" onerror="this.parentElement.innerHTML='🌐'"></div>
+    <div class="eyebrow" style="justify-content:center;">The Polaris MUN</div>
+    <div class="page-title" style="text-align:center;">Chit System</div>
+    <div class="page-sub" style="text-align:center;max-width:400px;margin:0 auto 8px;">27 – 28 June 2026 · Model United Nations</div>
+  </div>
+  <div id="setup-banner-landing"></div>
+  <div class="role-grid">
+    <div class="role-card del-card" onclick="goDelegate()">
+      <div class="rc-icon">✉️</div>
+      <div class="rc-title">I am a Delegate</div>
+      <div class="rc-sub">Send & track chits</div>
+    </div>
+    <div class="role-card eb-card" onclick="goEB()">
+      <div class="rc-icon">⚖️</div>
+      <div class="rc-title">EB / Staff Login</div>
+      <div class="rc-sub">Sign in with Google</div>
+    </div>
+  </div>
+  <div id="google-login-box" style="margin-top:16px;"></div>
+</div>
+
+<!-- ═══════════════ DELEGATE SETUP ═══════════════ -->
+<div id="screen-delegate-setup" class="screen">
+  <div class="eyebrow">Delegate</div>
+  <div class="page-title">Enter Your Details</div>
+  <div class="section-rule"></div>
+  <div class="card card-gold">
+    <div class="form-group">
+      <label class="form-label">Your Full Name</label>
+      <input class="form-input" id="del-name-input" type="text" placeholder="e.g. Arjun Mehta">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Your Committee</label>
+      <select class="form-select" id="del-committee-select">
+        <option value="">— Select Committee —</option>
+        <option>MSC</option><option>DISEC</option><option>UNGA</option><option>UNSC</option><option>UNHRC</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Your Portfolio / Country</label>
+      <input class="form-input" id="del-portfolio-input" type="text" placeholder="e.g. Iron Man / India">
+    </div>
+    <button class="btn-primary" onclick="submitDelegateSetup()">Enter Committee →</button>
+    <button class="btn-ghost" onclick="showScreen('landing')" style="margin-left:10px;">← Back</button>
+  </div>
+</div>
+
+<!-- ═══════════════ DELEGATE HOME ═══════════════ -->
+<div id="screen-delegate-home" class="screen">
+  <div class="eyebrow" id="del-home-eyebrow">Committee</div>
+  <div class="page-title" id="del-home-title">Send a Chit</div>
+  <div class="section-rule"></div>
+
+  <div class="chit-grid" id="del-chit-grid">
+    <div class="chit-btn poi" onclick="goSendChit('poi')">
+      <span class="cb-icon">💬</span>
+      <span class="cb-title">Point of Information</span>
+      <span class="cb-desc">Del → Del via EB</span>
+    </div>
+    <div class="chit-btn d2d" onclick="goSendChit('d2d')">
+      <span class="cb-icon">📨</span>
+      <span class="cb-title">Delegate Message</span>
+      <span class="cb-desc">Del → Del (direct)</span>
+    </div>
+    <div class="chit-btn sub" onclick="goSendChit('sub')">
+      <span class="cb-icon">📋</span>
+      <span class="cb-title">Substantive Chit</span>
+      <span class="cb-desc">Del → EB (content)</span>
+    </div>
+    <div class="chit-btn covert" id="btn-covert" onclick="goSendChit('covert')">
+      <span class="cb-icon">🕵️</span>
+      <span class="cb-title">Covert Directive</span>
+      <span class="cb-desc">Directive → EB</span>
+    </div>
+    <div class="chit-btn overt" id="btn-overt" onclick="goSendChit('overt')">
+      <span class="cb-icon">📣</span>
+      <span class="cb-title">Overt Directive</span>
+      <span class="cb-desc">Directive → EB</span>
+    </div>
+  </div>
+
+  <div class="tabs" id="del-tabs">
+    <button class="tab active" onclick="switchDelTab('sent')">Sent Chits</button>
+    <button class="tab" onclick="switchDelTab('received')">Received</button>
+  </div>
+  <div id="del-sent-list"></div>
+  <div id="del-received-list" style="display:none;"></div>
+</div>
+
+<!-- ═══════════════ SEND CHIT ═══════════════ -->
+<div id="screen-send-chit" class="screen">
+  <div class="eyebrow" id="send-chit-eyebrow">Send</div>
+  <div class="page-title" id="send-chit-title">New Chit</div>
+  <div class="section-rule"></div>
+  <div class="card" id="send-chit-card">
+    <div class="form-group" id="send-to-group">
+      <label class="form-label" id="send-to-label">To (Delegate Name)</label>
+      <input class="form-input" id="send-to-input" type="text" placeholder="Recipient's name">
+    </div>
+    <div class="form-group">
+      <label class="form-label" id="send-msg-label">Message / Content</label>
+      <textarea class="form-textarea" id="send-msg-input" placeholder="Write your message here..."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn-primary" onclick="submitChit()">Send Chit →</button>
+      <button class="btn-secondary" onclick="showScreen('delegate-home')">← Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ EB HOME ═══════════════ -->
+<div id="screen-eb-home" class="screen">
+  <div class="eyebrow" id="eb-home-eyebrow">EB Dashboard</div>
+  <div class="page-title" id="eb-home-title">Committee Inbox</div>
+  <div class="section-rule"></div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchEBTab('poi')">POI <span id="eb-tab-count-poi" class="badge badge-teal" style="margin-left:4px;"></span></button>
+    <button class="tab" onclick="switchEBTab('d2d')">Del→Del <span id="eb-tab-count-d2d" class="badge badge-silver" style="margin-left:4px;"></span></button>
+    <button class="tab" onclick="switchEBTab('sub')">Substantive <span id="eb-tab-count-sub" class="badge badge-gold" style="margin-left:4px;"></span></button>
+    <button class="tab" id="eb-tab-directives" onclick="switchEBTab('directives')" style="display:none;">Directives <span id="eb-tab-count-dir" class="badge badge-purple" style="margin-left:4px;"></span></button>
+    <button class="tab" onclick="switchEBTab('stats')">Stats</button>
+    <button class="tab" onclick="switchEBTab('criteria')">Criteria</button>
+<button class="tab" id="eb-tab-markers" onclick="switchEBTab('markers')">Marker Assignments</button>
+  </div>
+
+  <div id="eb-tab-poi"></div>
+  <div id="eb-tab-d2d" style="display:none;"></div>
+  <div id="eb-tab-sub" style="display:none;"></div>
+  <div id="eb-tab-directives-content" style="display:none;"></div>
+  <div id="eb-tab-stats" style="display:none;"></div>
+  <div id="eb-tab-criteria" style="display:none;"></div>
+<div id="eb-tab-marker-assignments" style="display:none;"></div>
+</div>
+
+<!-- ═══════════════ ADMIN ═══════════════ -->
+<div id="screen-admin" class="screen">
+  <div class="eyebrow">Admin Panel</div>
+  <div class="page-title">Conference Control</div>
+  <div class="section-rule"></div>
+
+  <div class="card card-gold" style="margin-bottom:16px;">
+    <div class="card-title">DISEC Directives</div>
+    <div class="card-sub">Toggle directive sending for DISEC delegates</div>
+    <div class="switch-wrap" style="margin-top:10px;">
+      <label class="switch">
+        <input type="checkbox" id="disec-toggle" onchange="toggleDisecDirectives(this.checked)">
+        <span class="slider"></span>
+      </label>
+      <span class="switch-label" id="disec-toggle-label">Directives Locked</span>
+    </div>
+  </div>
+
+  <div class="card card-teal">
+    <div class="card-title">All Committees Overview</div>
+    <div class="card-sub">Live chit counts across all committees</div>
+    <div id="admin-overview" style="margin-top:12px;"></div>
+  </div>
+
+  <div class="card card-purple">
+    <div class="card-title">All Committee Chits</div>
+    <div class="card-sub">Admin-only live view of every committee inbox</div>
+    <div class="tabs" id="admin-committee-tabs" style="margin-top:12px;"></div>
+    <div id="admin-chit-view" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- NOTIFICATION -->
+<div class="notif" id="notif"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────
+let STATE = {
+  role: null,           // 'delegate' | 'eb' | 'admin'
+  delegate: null,       // { name, committee, portfolio }
+  eb: null,             // { email, name, committee, role }
+  currentChitType: null,
+  ebTab: 'poi',
+  delTab: 'sent',
+  db: null,
+  criteria: {},
+  markerAssignments: {},         // { committee: { sub: [{name,max,mode}], poi: [...] } }
+  disecDirectives: false,
+};
+
+// ─── FIREBASE INIT ────────────────────────────────────────────
+function initFirebase() {
+  const cfg = CONFIG.FIREBASE;
+  if (!CONFIG.USE_FIREBASE || cfg.apiKey === 'YOUR_FIREBASE_API_KEY') return null;
+  try {
+    if (firebase.apps && firebase.apps.length) return firebase.database();
+    const app = firebase.initializeApp(cfg);
+    return firebase.database();
+  } catch(e) {
+    try { return firebase.database(); } catch(err) { return null; }
+  }
+}
+
+// ─── SCREENS ─────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById('screen-' + id);
+  if (el) el.classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────
+let notifTimer;
+function notify(msg, isError=false) {
+  const el = document.getElementById('notif');
+  el.textContent = msg;
+  el.className = 'notif show' + (isError ? ' error' : '');
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ─── LANDING ─────────────────────────────────────────────────
+function goDelegate() { showScreen('delegate-setup'); }
+
+function goEB() {
+  if (CONFIG.GOOGLE_CLIENT_ID.includes('YOUR_CLIENT_ID')) {
+    notify('Google Client ID not configured', true);
+    return;
+  }
+
+  const box = document.getElementById('google-login-box');
+  if (box) {
+    box.innerHTML = `
+      <div class="card card-teal" style="text-align:center;">
+        <div class="card-title">EB / Staff Google Login</div>
+        <div class="card-sub">Use the Google button below. This avoids Firebase domain popup errors.</div>
+        <div id="google-real-login" style="display:flex;justify-content:center;margin-top:14px;"></div>
+      </div>`;
+  }
+
+  if (window.google && google.accounts && google.accounts.id) {
+    google.accounts.id.initialize({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      callback: handleEBLogin,
+      auto_select: false,
+      cancel_on_tap_outside: false
+    });
+
+    const target = document.getElementById('google-real-login');
+    if (target) {
+      google.accounts.id.renderButton(target, {
+        theme: 'filled_black',
+        size: 'large',
+        text: 'signin_with',
+        shape: 'rectangular',
+        width: 300
+      });
+    }
+  } else {
+    notify('Google login is still loading. Wait 2 seconds and click EB / Staff Login again.', true);
+  }
+}
+
+
+function isAdminEmail(email) {
+  const normalized = (email || '').toLowerCase();
+  const adminList = CONFIG.ADMIN_EMAILS || [CONFIG.ADMIN_EMAIL];
+  return adminList.map(e => e.toLowerCase()).includes(normalized);
+}
+
+function isChairRole(role) {
+  return /chair/i.test(role || '');
+}
+
+function canConfigureMarkers() {
+  return STATE.role === 'eb' && STATE.eb && isChairRole(STATE.eb.role);
+}
+
+function committeeSupportsDirectives(committee) {
+  return CONFIG.DIRECTIVES_ALWAYS.includes(committee) || CONFIG.DIRECTIVES_TOGGLE.includes(committee);
+}
+
+function getMarkableTypesForCommittee(committee) {
+  const types = ['poi', 'sub'];
+  if (committeeSupportsDirectives(committee)) types.push('covert', 'overt');
+  return types;
+}
+
+function prettyType(type) {
+  return {
+    poi: 'POI Chits',
+    sub: 'Substantive Chits',
+    covert: 'Covert Directives',
+    overt: 'Overt Directives'
+  }[type] || type.toUpperCase();
+}
+
+function handleLoginIdentity(email, name) {
+  email = (email || '').toLowerCase();
+  name = name || email.split('@')[0];
+
+  // Admin?
+  if (isAdminEmail(email)) {
+    STATE.role = 'admin';
+    STATE.eb = null;
+    setHeaderUser(name, '⚙ ADMIN');
+    loadAdminScreen();
+    showScreen('admin');
+    return;
+  }
+
+  // EB?
+  const ebEntry = CONFIG.EB_ACCOUNTS[email];
+  if (ebEntry) {
+    STATE.role = 'eb';
+    STATE.eb = { email, name, committee: ebEntry.committee, role: ebEntry.role };
+    setHeaderUser(name, `${ebEntry.role} · ${ebEntry.committee}`);
+    syncCommitteeSettings(ebEntry.committee);
+    loadEBHome();
+    showScreen('eb-home');
+    return;
+  }
+
+  notify('This Google account is not registered as EB/admin.', true);
+}
+
+function handleEBLogin(response) {
+  try {
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    handleLoginIdentity(payload.email, payload.name);
+  } catch(e) {
+    notify('Login failed. Try again.', true);
+  }
+}
+
+function signOut() {
+  if (CONFIG.GOOGLE_CLIENT_ID && !CONFIG.GOOGLE_CLIENT_ID.includes('YOUR')) {
+    try { google.accounts.id.disableAutoSelect(); } catch(e){}
+  }
+  try { if (firebase && firebase.auth) firebase.auth().signOut(); } catch(e){}
+  STATE = { role:null, delegate:null, eb:null, currentChitType:null, ebTab:'poi', delTab:'sent', db:STATE.db, criteria:STATE.criteria, markerAssignments:STATE.markerAssignments, disecDirectives:STATE.disecDirectives };
+  setHeaderUser('', '');
+  document.getElementById('header-signout').style.display = 'none';
+  const box = document.getElementById('google-login-box');
+  if (box) box.innerHTML = '';
+  showScreen('landing');
+}
+
+function setHeaderUser(name, badge) {
+  document.getElementById('header-user-display').textContent = name;
+  const b = document.getElementById('header-role-badge');
+  if (badge) { b.textContent = badge; b.style.display = 'inline-block'; } else { b.style.display = 'none'; }
+  document.getElementById('header-signout').style.display = name ? 'block' : 'none';
+}
+
+// ─── SETUP BANNER ─────────────────────────────────────────────
+window.addEventListener('load', () => {
+  STATE.db = initFirebase();
+  const needsSetup = CONFIG.GOOGLE_CLIENT_ID.includes('YOUR') || CONFIG.FIREBASE.apiKey.includes('YOUR');
+  if (needsSetup) {
+    document.getElementById('setup-banner-landing').innerHTML = `
+      <div class="setup-banner">
+        <div class="setup-banner-title">Setup Required</div>
+        <div class="setup-banner-text">Add your Google Client ID and Firebase config at the top of the file. See the README for steps.</div>
+      </div>`;
+  }
+  loadDisecToggleState();
+});
+
+// ─── DELEGATE SETUP ───────────────────────────────────────────
+function submitDelegateSetup() {
+  const name = document.getElementById('del-name-input').value.trim();
+  const committee = document.getElementById('del-committee-select').value;
+  const portfolio = document.getElementById('del-portfolio-input').value.trim();
+  if (!name || !committee) { notify('Please fill in your name and committee.', true); return; }
+  STATE.role = 'delegate';
+  STATE.delegate = { name, committee, portfolio };
+  setHeaderUser(name, `${portfolio ? portfolio + ' · ' : ''}${committee}`);
+  loadDelegateHome();
+  showScreen('delegate-home');
+}
+
+// ─── DELEGATE HOME ─────────────────────────────────────────────
+function loadDelegateHome() {
+  const { committee } = STATE.delegate;
+  document.getElementById('del-home-eyebrow').textContent = committee + ' · Delegate';
+  document.getElementById('del-home-title').textContent = 'Send a Chit';
+
+  const hasDirectivesAlways = CONFIG.DIRECTIVES_ALWAYS.includes(committee);
+  const hasDirectivesToggle = CONFIG.DIRECTIVES_TOGGLE.includes(committee) && STATE.disecDirectives;
+  const showDirectives = hasDirectivesAlways || hasDirectivesToggle;
+
+  document.getElementById('btn-covert').className = 'chit-btn covert' + (showDirectives ? '' : ' disabled');
+  document.getElementById('btn-overt').className  = 'chit-btn overt'  + (showDirectives ? '' : ' disabled');
+
+  loadSentChits();
+  loadReceivedChits();
+}
+
+function switchDelTab(tab) {
+  STATE.delTab = tab;
+  document.querySelectorAll('#del-tabs .tab').forEach((t,i) => t.classList.toggle('active', ['sent','received'][i] === tab));
+  document.getElementById('del-sent-list').style.display     = tab === 'sent'     ? 'block' : 'none';
+  document.getElementById('del-received-list').style.display = tab === 'received' ? 'block' : 'none';
+}
+
+// ─── SEND CHIT ────────────────────────────────────────────────
+const CHIT_META = {
+  poi:    { title:'Point of Information',  eyebrow:'POI Chit',         showTo:true,  toLabel:'Recipient Delegate',  msgLabel:'Your Point of Information',  color:'teal' },
+  d2d:    { title:'Delegate Message',      eyebrow:'Del → Del Chit',   showTo:true,  toLabel:'To (Delegate Name)',   msgLabel:'Your Message',               color:'indigo' },
+  sub:    { title:'Substantive Chit',      eyebrow:'Substantive Chit', showTo:false, toLabel:'',                    msgLabel:'Substantive Content for EB',  color:'gold' },
+  covert: { title:'Covert Directive',      eyebrow:'Covert Directive', showTo:false, toLabel:'',                    msgLabel:'Directive Content',           color:'purple' },
+  overt:  { title:'Overt Directive',       eyebrow:'Overt Directive',  showTo:false, toLabel:'',                    msgLabel:'Directive Content',           color:'amber' },
+};
+
+function goSendChit(type) {
+  STATE.currentChitType = type;
+  const meta = CHIT_META[type];
+  document.getElementById('send-chit-eyebrow').textContent = meta.eyebrow;
+  document.getElementById('send-chit-title').textContent   = meta.title;
+  document.getElementById('send-to-group').style.display   = meta.showTo ? 'block' : 'none';
+  document.getElementById('send-to-label').textContent     = meta.toLabel;
+  document.getElementById('send-msg-label').textContent    = meta.msgLabel;
+  document.getElementById('send-to-input').value  = '';
+  document.getElementById('send-msg-input').value = '';
+  showScreen('send-chit');
+}
+
+function submitChit() {
+  const type     = STATE.currentChitType;
+  const meta     = CHIT_META[type];
+  const msg      = document.getElementById('send-msg-input').value.trim();
+  const to       = meta.showTo ? document.getElementById('send-to-input').value.trim() : null;
+  if (!msg) { notify('Please write a message.', true); return; }
+  if (meta.showTo && !to) { notify('Please enter recipient name.', true); return; }
+
+  const chit = {
+    id:          Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    type,
+    from:        STATE.delegate.name,
+    portfolio:   STATE.delegate.portfolio,
+    committee:   STATE.delegate.committee,
+    to:          to || null,
+    message:     msg,
+    timestamp:   Date.now(),
+    acknowledged:false,
+    marked:      false,
+    reported:    false,
+    marks:       {},
+    markerScores:{},
+    response:    null,
+  };
+
+  saveChit(chit);
+  notify('Chit sent successfully!');
+  showScreen('delegate-home');
+  loadSentChits();
+}
+
+// ─── DATA LAYER (localStorage fallback if no Firebase) ────────
+function getKey(committee) { return `polaris_chits_${committee}`; }
+function getDisecKey()      { return `polaris_disec_directives`; }
+
+function saveChit(chit) {
+  if (STATE.db) {
+    STATE.db.ref(`chits/${chit.committee}/${chit.id}`).set(chit);
+  } else {
+    const key  = getKey(chit.committee);
+    const data = JSON.parse(localStorage.getItem(key) || '{}');
+    data[chit.id] = chit;
+    localStorage.setItem(key, JSON.stringify(data));
+  }
+}
+
+function getChits(committee, callback) {
+  if (STATE.db) {
+    STATE.db.ref(`chits/${committee}`).on('value', snap => {
+      callback(snap.val() || {});
+    });
+  } else {
+    const data = JSON.parse(localStorage.getItem(getKey(committee)) || '{}');
+    callback(data);
+  }
+}
+
+function updateChit(committee, id, updates) {
+  if (STATE.db) {
+    STATE.db.ref(`chits/${committee}/${id}`).update(updates);
+  } else {
+    const key  = getKey(committee);
+    const data = JSON.parse(localStorage.getItem(key) || '{}');
+    if (data[id]) { Object.assign(data[id], updates); localStorage.setItem(key, JSON.stringify(data)); }
+  }
+}
+
+function loadDisecToggleState() {
+  if (STATE.db) {
+    STATE.db.ref('disec_directives').on('value', snap => {
+      STATE.disecDirectives = snap.val() || false;
+      const el = document.getElementById('disec-toggle');
+      if (el) { el.checked = STATE.disecDirectives; updateDisecLabel(); }
+    });
+  } else {
+    STATE.disecDirectives = localStorage.getItem(getDisecKey()) === 'true';
+  }
+}
+
+function toggleDisecDirectives(val) {
+  STATE.disecDirectives = val;
+  if (STATE.db) {
+    STATE.db.ref('disec_directives').set(val);
+  } else {
+    localStorage.setItem(getDisecKey(), val);
+  }
+  updateDisecLabel();
+  notify('DISEC directives ' + (val ? 'ENABLED' : 'DISABLED'));
+}
+
+function updateDisecLabel() {
+  const el = document.getElementById('disec-toggle-label');
+  if (el) el.textContent = STATE.disecDirectives ? 'Directives Enabled' : 'Directives Locked';
+}
+
+// ─── DELEGATE SENT LIST ────────────────────────────────────────
+function loadSentChits() {
+  const list = document.getElementById('del-sent-list');
+  list.innerHTML = '<div class="empty-state"><div class="es-icon">⏳</div><div class="es-text">Loading...</div></div>';
+  getChits(STATE.delegate.committee, chits => {
+    const mine = Object.values(chits).filter(c => c.from === STATE.delegate.name).sort((a,b)=>b.timestamp-a.timestamp);
+    if (!mine.length) { list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No chits sent yet</div></div>'; return; }
+    list.innerHTML = mine.map(c => renderDelegateSentChit(c)).join('');
+  });
+}
+
+function loadReceivedChits() {
+  const list = document.getElementById('del-received-list');
+  list.innerHTML = '';
+  getChits(STATE.delegate.committee, chits => {
+    const recv = Object.values(chits).filter(c => c.to === STATE.delegate.name && c.type === 'd2d').sort((a,b)=>b.timestamp-a.timestamp);
+    if (!recv.length) { list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No messages received</div></div>'; return; }
+    list.innerHTML = recv.map(c => renderDelegateRecvChit(c)).join('');
+  });
+}
+
+function renderDelegateSentChit(c) {
+  const typeColors = { poi:'teal', d2d:'indigo', sub:'gold', covert:'purple', overt:'amber' };
+  const col = typeColors[c.type] || 'silver';
+  const ackBadge = c.acknowledged
+    ? `<span class="badge badge-green">✓ Acknowledged</span>`
+    : `<span class="badge badge-silver">Pending</span>`;
+  const markedBadge = c.marked ? `<span class="badge badge-gold">Marked</span>` : '';
+  const dirLabel = (c.type==='covert'||c.type==='overt')
+    ? `<span class="directive-label directive-${c.type}">${c.type.toUpperCase()}</span>` : '';
+  const respHtml = c.response ? `<div class="response-box"><div class="response-label">EB Response</div><div class="response-text">${c.response}</div></div>` : '';
+  return `<div class="chit-item" style="border-left:3px solid var(--${col});">
+    <div class="chit-item-header">
+      ${dirLabel}
+      <span class="badge badge-${col}">${c.type.toUpperCase()}</span>
+      ${c.to ? `<span class="chit-to">→ ${c.to}</span>` : ''}
+      ${ackBadge}${markedBadge}
+    </div>
+    <div class="chit-body">${c.message}</div>
+    ${respHtml}
+    <div class="chit-time">${new Date(c.timestamp).toLocaleTimeString()}</div>
+  </div>`;
+}
+
+function renderDelegateRecvChit(c) {
+  return `<div class="chit-item" style="border-left:3px solid var(--indigo);">
+    <div class="chit-item-header">
+      <span class="badge badge-silver">DEL→DEL</span>
+      <span class="chit-from">${c.from}</span>
+      <span class="chit-to">${c.portfolio || ''}</span>
+    </div>
+    <div class="chit-body">${c.message}</div>
+    <div class="chit-time">${new Date(c.timestamp).toLocaleTimeString()}</div>
+  </div>`;
+}
+
+// ─── EB HOME ─────────────────────────────────────────────────
+function loadEBHome() {
+  const { committee, role } = STATE.eb;
+  document.getElementById('eb-home-eyebrow').textContent = `${committee} · ${role}`;
+  document.getElementById('eb-home-title').textContent   = 'Committee Inbox';
+
+  const showDir = CONFIG.DIRECTIVES_ALWAYS.includes(committee) ||
+                  (CONFIG.DIRECTIVES_TOGGLE.includes(committee) && STATE.disecDirectives);
+  document.getElementById('eb-tab-directives').style.display = showDir ? 'inline-block' : 'none';
+
+  const markerTab = document.getElementById('eb-tab-markers');
+  if (markerTab) markerTab.style.display = canConfigureMarkers() ? 'inline-block' : 'none';
+
+  syncCommitteeSettings(committee);
+  loadEBChits();
+}
+
+function switchEBTab(tab) {
+  if (tab === 'markers' && !canConfigureMarkers()) {
+    notify('Only the chairperson can assign markers.', true);
+    return;
+  }
+
+  STATE.ebTab = tab;
+  const tabs    = ['poi','d2d','sub','directives','stats','criteria','markers'];
+  const divIds  = [
+    'eb-tab-poi',
+    'eb-tab-d2d',
+    'eb-tab-sub',
+    'eb-tab-directives-content',
+    'eb-tab-stats',
+    'eb-tab-criteria',
+    'eb-tab-marker-assignments'
+  ];
+
+  document.querySelectorAll('#screen-eb-home .tabs .tab').forEach((t,i) => t.classList.toggle('active', tabs[i] === tab));
+  divIds.forEach((id,i) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = tabs[i] === tab ? 'block' : 'none';
+  });
+
+  if (tab === 'stats')    renderEBStats();
+  if (tab === 'criteria') renderCriteriaEditor();
+  if (tab === 'markers') renderMarkerAssignments();
+}
+
+function loadEBChits() {
+  const committee = STATE.eb.committee;
+  getChits(committee, chits => {
+    const all = Object.values(chits).sort((a,b)=>b.timestamp-a.timestamp);
+    const poi = all.filter(c=>c.type==='poi');
+    const d2d = all.filter(c=>c.type==='d2d');
+    const sub = all.filter(c=>c.type==='sub');
+    const dir = all.filter(c=>c.type==='covert'||c.type==='overt');
+
+    updateTabCount('poi', poi.filter(c=>!c.acknowledged).length);
+    updateTabCount('d2d', d2d.filter(c=>!c.acknowledged).length);
+    updateTabCount('sub', sub.filter(c=>!c.acknowledged).length);
+    updateTabCount('dir', dir.filter(c=>!c.acknowledged).length);
+
+    document.getElementById('eb-tab-poi').innerHTML            = renderEBChitList(poi,'poi');
+    document.getElementById('eb-tab-d2d').innerHTML            = renderEBChitList(d2d,'d2d');
+    document.getElementById('eb-tab-sub').innerHTML            = renderEBChitList(sub,'sub');
+    document.getElementById('eb-tab-directives-content').innerHTML = renderEBChitList(dir,'directive');
+    renderEBStats(chits);
+  });
+}
+
+function updateTabCount(type, count) {
+  const el = document.getElementById(`eb-tab-count-${type}`);
+  if (el) { el.textContent = count > 0 ? count : ''; el.style.display = count > 0 ? 'inline-block' : 'none'; }
+}
+
+function renderEBChitList(chits, tabType) {
+  if (!chits.length) return '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No chits yet</div></div>';
+  return chits.map(c => renderEBChitItem(c, tabType)).join('');
+}
+
+function renderEBChitItem(c, tabType) {
+  const col = { poi:'teal', d2d:'indigo', sub:'gold', covert:'purple', overt:'amber' }[c.type] || 'silver';
+  const ackBadge  = c.acknowledged ? `<span class="badge badge-green">✓ Ack</span>` : `<span class="badge badge-silver">Unread</span>`;
+  const markBadge = c.marked ? `<span class="badge badge-gold">Marked</span>` : '';
+  const dirLabel  = (c.type==='covert'||c.type==='overt') ? `<span class="directive-label directive-${c.type}">${c.type.toUpperCase()}</span>` : '';
+  const reportBadge = c.reported ? `<span class="badge badge-danger">⚠ Reported</span>` : '';
+  const reportBtn   = tabType==='d2d' && !c.reported ? `<button class="btn-danger btn-sm" onclick="reportChit('${c.id}')">Report</button>` : '';
+  const ackBtn      = !c.acknowledged ? `<button class="btn-secondary btn-sm" onclick="acknowledgeChit('${c.id}')">Acknowledge</button>` : '';
+
+  const crit = getCriteriaFor(STATE.eb.committee, c.type);
+  const assignments = getMarkerAssignments(STATE.eb.committee);
+  const markerConfig = assignments[c.type] || { markers: [], aggregation: 'average' };
+  const assignedMarkers = markerConfig.markers || [];
+  const canMark = !assignedMarkers.length || assignedMarkers.includes(STATE.eb.email);
+  const markable = ['poi','sub','covert','overt'].includes(c.type);
+  const myScores = (c.markerScores && c.markerScores[STATE.eb.email]) ? c.markerScores[STATE.eb.email] : {};
+
+  let marksHtml = '';
+  if (markable && crit.length) {
+    const markerNames = assignedMarkers.length
+      ? assignedMarkers.map(m => m.split('@')[0]).join(', ')
+      : 'Any EB member';
+
+    const finalMarksHtml = c.marked ? `<div class="mark-grid" style="margin-top:8px;">${
+      crit.map(cr=>{
+        const key = cr.name.replace(/\s/g,'_');
+        const val = c.marks?.[key] ?? 0;
+        return `<div class="mark-row"><span class="mark-name">Final · ${cr.name}</span><span class="stats-val">${val}</span><span class="mark-max">/ ${markerConfig.aggregation === 'sum' ? cr.max * Math.max(1, Object.keys(c.markerScores || {}).length) : cr.max}</span><span class="mark-type ${cr.mode}">${cr.mode==='avg'?'AVG':'TOT'}</span></div>`;
+      }).join('')
+    }</div>` : '';
+
+    const markerNote = `<div class="form-hint">Assigned markers: ${markerNames} · Calculation: ${markerConfig.aggregation === 'sum' ? 'Absolute/Sum' : 'Average'}</div>`;
+
+    if (canMark) {
+      marksHtml = `<div class="mark-grid" id="marks-${c.id}">
+        ${markerNote}
+        ${crit.map(cr=>{
+          const key = cr.name.replace(/\s/g,'_');
+          const existing = myScores[key] ?? '';
+          return `<div class="mark-row">
+            <span class="mark-name">${cr.name}</span>
+            <input class="mark-input" type="number" min="0" max="${cr.max}" value="${existing}" placeholder="0" id="mk_${c.id}_${key}" oninput="this.value=Math.min(${cr.max},Math.max(0,this.value||0))">
+            <span class="mark-max">/ ${cr.max}</span>
+            <span class="mark-type ${cr.mode}">${cr.mode==='avg'?'AVG':'TOT'}</span>
+          </div>`;
+        }).join('')}
+        <button class="btn-primary btn-sm" style="margin-top:8px;" onclick="submitMarks('${c.id}')">${myScores && Object.keys(myScores).length ? 'Update My Marks' : 'Save My Marks'}</button>
+        ${finalMarksHtml}
+      </div>`;
+    } else {
+      marksHtml = `<div class="response-box" style="margin-top:8px;">
+        <div class="response-label">Marker Assignment</div>
+        <div class="response-text">You are not assigned to mark this category. ${markerNote}</div>
+      </div>${finalMarksHtml}`;
+    }
+
+    if (c.markerScores && Object.keys(c.markerScores).length) {
+      marksHtml += `<div class="form-hint">Marked by: ${Object.keys(c.markerScores).map(m=>m.split('@')[0]).join(', ')}</div>`;
+    }
+  }
+
+  // Response for directives
+  let responseHtml = '';
+  if (tabType==='directive') {
+    if (c.response) {
+      responseHtml = `<div class="response-box" style="margin-top:8px;"><div class="response-label">Your Response</div><div class="response-text">${c.response}</div></div>`;
+    } else if (c.acknowledged) {
+      responseHtml = `<div style="margin-top:8px;display:flex;gap:8px;align-items:flex-start;">
+        <textarea class="form-textarea" id="resp-${c.id}" style="font-size:12px;min-height:55px;flex:1;" placeholder="Add a response (optional)..."></textarea>
+        <button class="btn-primary btn-sm" style="margin-top:2px;" onclick="sendResponse('${c.id}')">Send</button>
+      </div>`;
+    }
+  }
+
+  return `<div class="chit-item" style="border-left:3px solid var(--${col});">
+    <div class="chit-item-header">
+      ${dirLabel}
+      <span class="chit-from">${c.from}</span>
+      ${c.portfolio ? `<span class="badge badge-silver">${c.portfolio}</span>` : ''}
+      ${c.to ? `<span class="chit-to">→ ${c.to}</span>` : ''}
+      ${ackBadge}${markBadge}${reportBadge}
+    </div>
+    <div class="chit-body">${c.message}</div>
+    ${marksHtml}
+    ${responseHtml}
+    <div class="chit-actions">
+      ${ackBtn}${reportBtn}
+      <span class="chit-time">${new Date(c.timestamp).toLocaleTimeString()}</span>
+    </div>
+  </div>`;
+}
+
+function acknowledgeChit(id) {
+  updateChit(STATE.eb.committee, id, { acknowledged: true });
+  loadEBChits();
+  notify('Chit acknowledged.');
+}
+
+function reportChit(id) {
+  updateChit(STATE.eb.committee, id, { reported: true });
+  loadEBChits();
+  notify('Chit reported.');
+}
+
+function sendResponse(id) {
+  const resp = document.getElementById(`resp-${id}`)?.value.trim();
+  if (!resp) { notify('Write a response first.', true); return; }
+  updateChit(STATE.eb.committee, id, { response: resp });
+  loadEBChits();
+  notify('Response sent.');
+}
+
+
+function submitMarks(id) {
+  const committee = STATE.eb.committee;
+  const email = STATE.eb.email;
+
+  getChits(committee, chits => {
+    const chit = chits[id];
+    if (!chit) return;
+
+    const crit = getCriteriaFor(committee, chit.type);
+    const assignments = getMarkerAssignments(committee);
+    const markerConfig = assignments[chit.type] || { markers: [], aggregation: 'average' };
+
+    if (markerConfig.markers.length && !markerConfig.markers.includes(email)) {
+      notify('You are not assigned to mark this category.', true);
+      return;
+    }
+
+    const markerScores = chit.markerScores || {};
+    if (!markerScores[email]) markerScores[email] = {};
+
+    crit.forEach(cr => {
+      const key = cr.name.replace(/\s/g,'_');
+      const val = parseFloat(document.getElementById(`mk_${id}_${key}`)?.value || 0);
+      markerScores[email][key] = Math.max(0, Math.min(cr.max, val));
+    });
+
+    const finalMarks = {};
+    crit.forEach(cr => {
+      const key = cr.name.replace(/\s/g,'_');
+      const allowedMarkers = markerConfig.markers.length ? markerConfig.markers : Object.keys(markerScores);
+      const allValues = allowedMarkers
+        .filter(markerEmail => markerScores[markerEmail])
+        .map(markerEmail => Number(markerScores[markerEmail][key] || 0));
+
+      if (!allValues.length) {
+        finalMarks[key] = 0;
+        return;
+      }
+
+      const total = allValues.reduce((a,b)=>a+b,0);
+      finalMarks[key] = markerConfig.aggregation === 'sum'
+        ? total
+        : Number((total / allValues.length).toFixed(2));
+    });
+
+    updateChit(committee, id, { markerScores, marks: finalMarks, marked: true });
+    loadEBChits();
+    notify('Marks submitted.');
+  });
+}
+
+
+
+function syncCommitteeSettings(committee) {
+  if (!STATE.db || !committee) return;
+
+  STATE.db.ref(`marker_assignments/${committee}`).on('value', snap => {
+    localStorage.setItem(`marker_assignments_${committee}`, JSON.stringify(snap.val() || {}));
+    if (STATE.ebTab === 'markers' && canConfigureMarkers()) renderMarkerAssignments();
+    if (STATE.role === 'eb') loadEBChits();
+  });
+
+  getMarkableTypesForCommittee(committee).forEach(type => {
+    STATE.db.ref(`criteria/${committee}/${type}`).on('value', snap => {
+      localStorage.setItem(`criteria_${committee}_${type}`, JSON.stringify(snap.val() || []));
+      if (STATE.ebTab === 'criteria') renderCriteriaEditor();
+      if (STATE.role === 'eb') loadEBChits();
+    });
+  });
+}
+
+// ─── CRITERIA ─────────────────────────────────────────────────
+
+function getMarkerAssignments(committee) {
+  const stored = localStorage.getItem(`marker_assignments_${committee}`);
+  return stored ? JSON.parse(stored) : {};
+}
+
+function normalizeMarkerConfig(config) {
+  config = config || {};
+  let markers = config.markers;
+  if (!Array.isArray(markers)) markers = [];
+  let aggregation = config.aggregation || 'average';
+  if (!['average', 'sum', 'complete_average'].includes(aggregation)) aggregation = 'average';
+  return { markers, aggregation };
+}
+
+function saveMarkerAssignments(committee, data) {
+  localStorage.setItem(`marker_assignments_${committee}`, JSON.stringify(data));
+  if (STATE.db) {
+    STATE.db.ref(`marker_assignments/${committee}`).set(data);
+  }
+}
+
+function getCommitteeEBMembers(committee) {
+  const order = role => {
+    if (/chair/i.test(role || '')) return 1;
+    if (/vice/i.test(role || '')) return 2;
+    if (/rapporteur|rap/i.test(role || '')) return 3;
+    return 4;
+  };
+
+  return Object.entries(CONFIG.EB_ACCOUNTS)
+    .filter(([email, data]) => data.committee === committee)
+    .map(([email, data]) => ({
+      email,
+      role: data.role,
+      name: email.split('@')[0]
+    }))
+    .sort((a,b)=>order(a.role)-order(b.role));
+}
+
+
+function getCriteriaFor(committee, type) {
+  const stored = localStorage.getItem(`criteria_${committee}_${type}`);
+  return stored ? JSON.parse(stored) : [];
+}
+
+function saveCriteriaFor(committee, type, list) {
+  localStorage.setItem(`criteria_${committee}_${type}`, JSON.stringify(list));
+  if (STATE.db) {
+    STATE.db.ref(`criteria/${committee}/${type}`).set(list);
+  }
+}
+
+function renderCriteriaEditor() {
+  const committee = STATE.eb.committee;
+  const el = document.getElementById('eb-tab-criteria');
+  const types = getMarkableTypesForCommittee(committee);
+
+  el.innerHTML = types.map(type => {
+    const crit = getCriteriaFor(committee, type);
+    const label = prettyType(type);
+    return `<div class="card" style="margin-bottom:14px;">
+      <div class="card-title">${label}</div>
+      <div class="card-sub">Marking criteria · Set name, max marks, and mode</div>
+      <div id="crit-list-${type}">
+        ${crit.map((cr,i)=>renderCriteriaRow(type,i,cr)).join('')}
+      </div>
+      <button class="btn-secondary btn-sm" style="margin-top:8px;" onclick="addCriteriaRow('${type}')">+ Add Criteria</button>
+      <button class="btn-primary btn-sm" style="margin-left:8px;" onclick="saveCriteria('${type}')">Save</button>
+    </div>`;
+  }).join('');
+}
+
+function renderCriteriaRow(type, i, cr={name:'',max:10,mode:'avg'}) {
+  return `<div class="criteria-row" id="crit-row-${type}-${i}">
+    <input class="form-input" style="flex:1;font-size:12px;padding:7px 10px;" id="crit-name-${type}-${i}" value="${cr.name}" placeholder="Criteria name">
+    <input class="form-input" type="number" style="width:65px;font-size:12px;padding:7px 8px;" id="crit-max-${type}-${i}" value="${cr.max}" min="1" placeholder="Max">
+    <div class="toggle-group">
+      <button class="toggle-opt ${cr.mode==='avg'?'active-avg':''}" id="mode-avg-${type}-${i}" onclick="setMode('${type}',${i},'avg')">AVG</button>
+      <button class="toggle-opt ${cr.mode==='tot'?'active-tot':''}" id="mode-tot-${type}-${i}" onclick="setMode('${type}',${i},'tot')">TOTAL</button>
+    </div>
+    <button class="btn-ghost" onclick="removeCriteriaRow('${type}',${i})">✕</button>
+  </div>`;
+}
+
+function addCriteriaRow(type) {
+  const crit = getCriteriaFor(STATE.eb.committee, type);
+  crit.push({ name:'', max:10, mode:'avg' });
+  saveCriteriaFor(STATE.eb.committee, type, crit);
+  renderCriteriaEditor();
+}
+
+function removeCriteriaRow(type, i) {
+  const crit = getCriteriaFor(STATE.eb.committee, type);
+  crit.splice(i, 1);
+  saveCriteriaFor(STATE.eb.committee, type, crit);
+  renderCriteriaEditor();
+}
+
+function setMode(type, i, mode) {
+  const crit = getCriteriaFor(STATE.eb.committee, type);
+  if (crit[i]) crit[i].mode = mode;
+  saveCriteriaFor(STATE.eb.committee, type, crit);
+  renderCriteriaEditor();
+}
+
+function saveCriteria(type) {
+  const crit = getCriteriaFor(STATE.eb.committee, type);
+  crit.forEach((cr, i) => {
+    cr.name = document.getElementById(`crit-name-${type}-${i}`)?.value.trim() || cr.name;
+    cr.max  = parseFloat(document.getElementById(`crit-max-${type}-${i}`)?.value) || cr.max;
+  });
+  saveCriteriaFor(STATE.eb.committee, type, crit.filter(c=>c.name));
+  renderCriteriaEditor();
+  notify('Criteria saved.');
+}
+
+
+function renderMarkerAssignments() {
+  const committee = STATE.eb?.committee;
+  const el = document.getElementById('eb-tab-marker-assignments');
+  if (!el) return;
+
+  if (!committee) {
+    el.innerHTML = '<div class="card card-danger"><div class="card-title">No Committee Loaded</div><div class="card-sub">Sign out and log in again.</div></div>';
+    return;
+  }
+
+  if (!canConfigureMarkers()) {
+    el.innerHTML = '<div class="card card-danger"><div class="card-title">Restricted</div><div class="card-sub">Only the chairperson of this committee can assign markers.</div></div>';
+    return;
+  }
+
+  const members = getCommitteeEBMembers(committee);
+  const assignments = getMarkerAssignments(committee) || {};
+  const types = getMarkableTypesForCommittee(committee);
+
+  if (!members.length) {
+    el.innerHTML = '<div class="empty-state"><div class="es-icon">⚖️</div><div class="es-text">Add Chair, Vice Chair, and Rapporteur emails in EB_ACCOUNTS first</div></div>';
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="card card-gold">
+      <div class="card-title">Chairperson Marker Control</div>
+      <div class="card-sub">Choose who marks each chit/directive type · maximum 3 markers</div>
+      <div class="form-hint">If no marker is selected for a category, any EB of this committee can mark it.</div>
+    </div>
+  ` + types.map(type => {
+    const current = normalizeMarkerConfig(assignments[type]);
+
+    return `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">${prettyType(type)}</div>
+      <div class="card-sub">Assign Chair / Vice Chair / Rapporteur and choose score calculation</div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+        ${members.map(member => {
+          const checked = current.markers.includes(member.email);
+          return `
+          <label style="display:flex;align-items:center;gap:10px;font-family:'Space Mono',monospace;font-size:10px;cursor:pointer;">
+            <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleMarker('${type}','${member.email}',this.checked)">
+            <span>${member.role} · ${member.name}</span>
+          </label>`;
+        }).join('')}
+      </div>
+
+      <div style="margin-top:16px;">
+        <div class="form-label">Multiple Marker Calculation</div>
+        <select class="form-select" onchange="setMarkerAggregation('${type}', this.value)">
+          <option value="average" ${current.aggregation==='average'?'selected':''}>Average per chit</option>
+          <option value="sum" ${current.aggregation==='sum'?'selected':''}>Absolute / Sum of all selected markers</option>
+          <option value="complete_average" ${current.aggregation==='complete_average'?'selected':''}>Complete Average across all markers and chits</option>
+        </select>
+        <div class="form-hint">Complete Average = total raw marks ÷ total marker entries. Example: 5 POIs × 3 markers = divide by 15.</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleMarker(type, email, checked) {
+  if (!canConfigureMarkers()) {
+    notify('Only the chairperson can assign markers.', true);
+    return;
+  }
+
+  const committee = STATE.eb.committee;
+  const assignments = getMarkerAssignments(committee) || {};
+  const current = normalizeMarkerConfig(assignments[type]);
+
+  if (checked) {
+    if (current.markers.length >= 3) {
+      notify('Maximum 3 markers allowed.', true);
+      renderMarkerAssignments();
+      return;
+    }
+    if (!current.markers.includes(email)) current.markers.push(email);
+  } else {
+    current.markers = current.markers.filter(m => m !== email);
+  }
+
+  assignments[type] = current;
+  saveMarkerAssignments(committee, assignments);
+  renderMarkerAssignments();
+}
+
+function setMarkerAggregation(type, value) {
+  if (!canConfigureMarkers()) {
+    notify('Only the chairperson can assign markers.', true);
+    return;
+  }
+
+  const committee = STATE.eb.committee;
+  const assignments = getMarkerAssignments(committee) || {};
+  const current = normalizeMarkerConfig(assignments[type]);
+
+  current.aggregation = ['average', 'sum', 'complete_average'].includes(value)
+    ? value
+    : 'average';
+
+  assignments[type] = current;
+  saveMarkerAssignments(committee, assignments);
+  notify('Aggregation updated.');
+}
+
+
+// ─── STATS ─────────────────────────────────────────────────────
+
+function calculateStatsValueForCriterion(chits, criterion, type, committee) {
+  const key = criterion.name.replace(/\s/g,'_');
+  const assignments = getMarkerAssignments(committee);
+  const markerConfig = assignments[type] || { markers: [], aggregation: 'average' };
+
+  if (markerConfig.aggregation === 'complete_average') {
+    let rawTotal = 0;
+    let rawCount = 0;
+
+    chits.forEach(chit => {
+      const markerScores = chit.markerScores || {};
+      const markerEmails = markerConfig.markers.length
+        ? markerConfig.markers
+        : Object.keys(markerScores);
+
+      markerEmails.forEach(markerEmail => {
+        const scoreObj = markerScores[markerEmail];
+        if (scoreObj && scoreObj[key] !== undefined && scoreObj[key] !== null && scoreObj[key] !== '') {
+          rawTotal += Number(scoreObj[key] || 0);
+          rawCount++;
+        }
+      });
+    });
+
+    return rawCount ? Number((rawTotal / rawCount).toFixed(2)) : '—';
+  }
+
+  const vals = chits
+    .filter(c => c.marks)
+    .map(c => Number(c.marks[key] || 0));
+
+  if (!vals.length) return '—';
+
+  const total = vals.reduce((a,b)=>a+b,0);
+  return criterion.mode === 'avg'
+    ? Number((total / vals.length).toFixed(2))
+    : total;
+}
+
+function getStatsCountForCriterion(chits, criterion, type, committee) {
+  const key = criterion.name.replace(/\s/g,'_');
+  const assignments = getMarkerAssignments(committee);
+  const markerConfig = assignments[type] || { markers: [], aggregation: 'average' };
+
+  if (markerConfig.aggregation !== 'complete_average') {
+    return chits.length;
+  }
+
+  let rawCount = 0;
+
+  chits.forEach(chit => {
+    const markerScores = chit.markerScores || {};
+    const markerEmails = markerConfig.markers.length
+      ? markerConfig.markers
+      : Object.keys(markerScores);
+
+    markerEmails.forEach(markerEmail => {
+      const scoreObj = markerScores[markerEmail];
+      if (scoreObj && scoreObj[key] !== undefined && scoreObj[key] !== null && scoreObj[key] !== '') {
+        rawCount++;
+      }
+    });
+  });
+
+  return `${rawCount} marks`;
+}
+
+function renderEBStats(allChits) {
+  const el = document.getElementById('eb-tab-stats');
+  if (!el) return;
+
+  getChits(STATE.eb.committee, chits => {
+    const all = Object.values(chits);
+    const delegates = {};
+
+    all.forEach(c => {
+      if (!delegates[c.from]) delegates[c.from] = { poi:[], sub:[], covert:[], overt:[] };
+      if (c.type === 'poi')    delegates[c.from].poi.push(c);
+      if (c.type === 'sub')    delegates[c.from].sub.push(c);
+      if (c.type === 'covert') delegates[c.from].covert.push(c);
+      if (c.type === 'overt')  delegates[c.from].overt.push(c);
+    });
+
+    if (!Object.keys(delegates).length) {
+      el.innerHTML = '<div class="empty-state"><div class="es-icon">📊</div><div class="es-text">No data yet</div></div>';
+      return;
+    }
+
+    el.innerHTML = Object.entries(delegates).map(([name, data]) => {
+      const sections = [
+        { label:'POI',              type:'poi',    chits:data.poi,    crit:getCriteriaFor(STATE.eb.committee, 'poi') },
+        { label:'Substantive',      type:'sub',    chits:data.sub,    crit:getCriteriaFor(STATE.eb.committee, 'sub') },
+        { label:'Covert Directive', type:'covert', chits:data.covert, crit:getCriteriaFor(STATE.eb.committee, 'covert') },
+        { label:'Overt Directive',  type:'overt',  chits:data.overt,  crit:getCriteriaFor(STATE.eb.committee, 'overt') },
+      ].filter(s=>s.chits.length);
+
+      const sectHtml = sections.map(s => {
+        if (!s.crit.length) return `<tr><td>${s.label}</td><td>${s.chits.length} chit(s)</td><td>—</td><td>—</td></tr>`;
+        return s.crit.map((cr, ci) => {
+          const markerConfig = normalizeMarkerConfig((getMarkerAssignments(STATE.eb.committee) || {})[s.type]);
+          const score = calculateStatsValueForCriterion(s.chits, cr, s.type, STATE.eb.committee);
+          const count = getStatsCountForCriterion(s.chits, cr, s.type, STATE.eb.committee);
+          const modeLabel = markerConfig.aggregation === 'complete_average' ? ' · COMPLETE AVG' : '';
+          return `<tr>
+            <td>${ci===0?s.label:''}</td>
+            <td>${cr.name}${modeLabel}</td>
+            <td class="stats-val">${score}</td>
+            <td class="stats-val">${count}</td>
+          </tr>`;
+        }).join('');
+      }).join('');
+
+      const portfolio = data.poi[0]?.portfolio || data.sub[0]?.portfolio || data.covert[0]?.portfolio || data.overt[0]?.portfolio || '';
+
+      return `<div class="card" style="margin-bottom:12px;padding:14px 16px;">
+        <div class="card-title" style="margin-bottom:10px;">${name} ${portfolio ? `<span class="badge badge-silver" style="margin-left:6px;">${portfolio}</span>` : ''}</div>
+        <table class="stats-table" style="width:100%;">
+          <thead><tr><th>Type</th><th>Criteria</th><th>Score</th><th>Count</th></tr></thead>
+          <tbody>${sectHtml}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+  });
+}
+
+// ─── ADMIN ─────────────────────────────────────────────────────
+function loadAdminScreen() {
+  const el = document.getElementById('admin-overview');
+  el.innerHTML = '<div class="empty-state"><div class="es-icon">📊</div><div class="es-text">Loading...</div></div>';
+  const committees = CONFIG.COMMITTEES;
+  const counts = {};
+  let done = 0;
+  committees.forEach(c => {
+    getChits(c, chits => {
+      counts[c] = Object.values(chits).length;
+      done++;
+      if (done === committees.length) {
+        el.innerHTML = committees.map(c=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <span style="font-family:'Cinzel',serif;font-size:12px;color:var(--white);">${c}</span>
+            <span class="badge badge-teal">${counts[c]} chits</span>
+          </div>`).join('');
+      }
+    });
+  });
+  renderAdminChitViewer();
+
+  // Sync toggle
+  const toggle = document.getElementById('disec-toggle');
+  if (toggle) { toggle.checked = STATE.disecDirectives; updateDisecLabel(); }
+}
+</script>
+</body>
+</html>
