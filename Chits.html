@@ -40,28 +40,22 @@ const CONFIG = {
   // EB Google accounts — map email to committee + role
   EB_ACCOUNTS: {
     'akshaypro28@gmail.com': { committee: 'MSC', role: 'Chair' },
-    'aarjavjain2020@gmail.com': { committee: 'DISEC', role: 'Chair' },
+    'aarjav2020@gmail.com': { committee: 'DISEC', role: 'Chair' },
     'darshprakash1101@gmail.com': { committee: 'UNGA', role: 'Chair' },
-    'saanvie.verma27@gmail.com':{ committee: 'UNHRC', role: 'Chair' },
-    'arorareyansh16@gmail.com':{ committee: 'MSC', role: 'Vice Chair'},
-
-    // Add each committee EB here. Marker Assignments uses these roles.
-    // 'mscvice@gmail.com': { committee: 'MSC', role: 'Vice Chair' },
-    // 'mscrapporteur@gmail.com': { committee: 'MSC', role: 'Rapporteur' },
-    // 'disecvice@gmail.com': { committee: 'DISEC', role: 'Vice Chair' },
-    // 'disecrapporteur@gmail.com': { committee: 'DISEC', role: 'Rapporteur' },
-    // 'ungavice@gmail.com': { committee: 'UNGA', role: 'Vice Chair' },
-    // 'ungarapporteur@gmail.com': { committee: 'UNGA', role: 'Rapporteur' },
+    'saanvie.verma27@gmail.com': { committee: 'UNHRC', role: 'Chair' },
+    'arorareyansh16@gmail.com': { committee: 'MSC', role: 'Vice Chair' },
   },
 };
-</script>
 
 // Firebase Init
-firebase.initializeApp(CONFIG.FIREBASE);
+if (!firebase.apps.length) {
+  firebase.initializeApp(CONFIG.FIREBASE);
+}
 
 const db = firebase.database();
 const auth = firebase.auth();
 </script>
+
 <style>
 :root {
   --ink:    #0a0d1a;
