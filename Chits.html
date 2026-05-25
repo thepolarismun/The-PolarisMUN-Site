@@ -15,7 +15,6 @@
 <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-auth-compat.js"></script>
 
-
 <script>
 const CONFIG = {
   GOOGLE_CLIENT_ID: '155440301105-8l928akjmurv0d3v39sse19n34gqtpeh.apps.googleusercontent.com',
@@ -24,7 +23,6 @@ const CONFIG = {
 
   USE_FIREBASE: true,
 
-  // Firebase Realtime Database config
   FIREBASE: {
     apiKey: 'AIzaSyDpHxAhym6btvCYluL14qqF2WZ4ZYOuhJs',
     authDomain: 'the-polaris-mun-71844.firebaseapp.com',
@@ -37,7 +35,6 @@ const CONFIG = {
   DIRECTIVES_ALWAYS: ['MSC'],
   DIRECTIVES_TOGGLE: ['DISEC'],
 
-  // EB Google accounts — map email to committee + role
   EB_ACCOUNTS: {
     'akshaypro28@gmail.com': { committee: 'MSC', role: 'Chair' },
     'aarjav2020@gmail.com': { committee: 'DISEC', role: 'Chair' },
@@ -47,7 +44,6 @@ const CONFIG = {
   },
 };
 
-// Firebase Init
 if (!firebase.apps.length) {
   firebase.initializeApp(CONFIG.FIREBASE);
 }
@@ -593,9 +589,9 @@ function goEB() {
 
 
 function isAdminEmail(email) {
-  const normalized = (email || '').toLowerCase();
+  const normalized = String(email || '').trim().toLowerCase();
   const adminList = CONFIG.ADMIN_EMAILS || [CONFIG.ADMIN_EMAIL];
-  return adminList.map(e => e.toLowerCase()).includes(normalized);
+  return adminList.map(e => String(e || '').trim().toLowerCase()).includes(normalized);
 }
 
 function isChairRole(role) {
@@ -640,7 +636,12 @@ function handleLoginIdentity(email, name) {
   }
 
   // EB?
-  const ebEntry = CONFIG.EB_ACCOUNTS[email];
+  const normalizedAccounts = {};
+  Object.entries(CONFIG.EB_ACCOUNTS || {}).forEach(([accountEmail, data]) => {
+    normalizedAccounts[String(accountEmail).trim().toLowerCase()] = data;
+  });
+
+  const ebEntry = normalizedAccounts[email];
   if (ebEntry) {
     STATE.role = 'eb';
     STATE.eb = { email, name, committee: ebEntry.committee, role: ebEntry.role };
@@ -655,24 +656,22 @@ function handleLoginIdentity(email, name) {
 }
 
 function decodeJwtPayload(token) {
-  const base64Url = token.split('.')[1];
-  const base64 = base64Url
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) {
+    throw new Error('Invalid Google credential format.');
+  }
 
-  const padded = base64.padEnd(
-    base64.length + (4 - base64.length % 4) % 4,
-    '='
-  );
+  const base64Url = parts[1];
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
 
-  const jsonPayload = decodeURIComponent(
-    atob(padded)
-      .split('')
-      .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-      .join('')
-  );
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
 
-  return JSON.parse(jsonPayload);
+  return JSON.parse(new TextDecoder('utf-8').decode(bytes));
 }
 
 function handleEBLogin(response) {
@@ -683,6 +682,7 @@ function handleEBLogin(response) {
     }
 
     const payload = decodeJwtPayload(response.credential);
+    console.log('Google login payload email:', payload.email);
 
     if (!payload.email) {
       notify('Google login did not return an email.', true);
@@ -692,7 +692,7 @@ function handleEBLogin(response) {
     handleLoginIdentity(payload.email, payload.name || payload.email);
   } catch(e) {
     console.error('Google login decode error:', e);
-    notify('Login failed. Check console for details.', true);
+    notify('Login failed: ' + (e.message || 'unknown error'), true);
   }
 }
 
