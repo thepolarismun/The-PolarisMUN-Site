@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Letters — The Polaris MUN</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<!-- =====================================================
+  CONFIGURATION — EDIT THIS SECTION ONLY
+  =====================================================
+  STEP 1: Get a Google OAuth Client ID
+    - Go to https://console.cloud.google.com
+    - Create a project → APIs & Services → Credentials
+    - Create OAuth 2.0 Client ID → Web Application
+    - Add your site URL to "Authorised JavaScript origins"
+    - Copy the Client ID and paste below
+
+  STEP 2: Add each person's email and their Google Drive file IDs
+    - Upload each PDF to Google Drive
+    - Right-click → Share → change to "Anyone with the link can view"
+    - Copy the file ID from the URL:
+      drive.google.com/file/d/THIS_PART_HERE/view
+    - Add entries to LETTERS and RECOMMENDATIONS below
+  ===================================================== -->
+<script>
+const GOOGLE_CLIENT_ID = '155440301105-8l928akjmurv0d3v39sse19n34gqtpeh.apps.googleusercontent.com';
+
+// Format: 'email@gmail.com': { loa: 'DRIVE_FILE_ID', rec: 'DRIVE_FILE_ID' }
+// loa = Letter of Appointment, rec = Recommendation Letter
+// Leave rec as null if no recommendation letter for that person
+const ADMIN_EMAIL = 'akshaypro28@gmail.com';
+
+const LETTERS = {
+  'darshprakash1101@gmail.com': { name: 'Darsh Prakash', loa: '1iM8bbJIi6DvsKzs786Li6QYxQ1qqtPRd', rec: null },
+  // add more below:
+  // 'boardmember@gmail.com': { name: 'Full Name', loa: 'FILE_ID', rec: 'FILE_ID' },
+};
+</script>
+<!-- ===================================================== -->
+
+<style>
+  :root {
+    --ink:    #0a0d1a;
+    --gold:   #c9a84c;
+    --gold-lt:#e8d08a;
+    --teal:   #2dd4bf;
+    --silver: #94a3b8;
+    --mist:   #e2e8f0;
+    --white:  #f8fafc;
+    --danger: #ef4444;
+    --mid:    #111827;
+    --card:   #0f172a;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--ink);
+    background-image: radial-gradient(circle at 50% 20%, #1e2235 0%, var(--ink) 80%);
+    font-family: 'Crimson Pro', Georgia, serif;
+    color: var(--white);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── TOP BAR ── */
+  .top-bar { width:100%; height:4px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+
+  /* ── HEADER ── */
+  .site-header {
+    width:100%; max-width:700px;
+    padding: 28px 20px 0;
+    display: flex; align-items: center; gap:16px;
+  }
+  .logo-ring {
+    width:52px; height:52px; border:1.5px solid var(--gold);
+    border-radius:50%; flex-shrink:0; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    background: var(--mid);
+  }
+  .logo-ring img { width:46px; height:46px; object-fit:cover; border-radius:50%; }
+  .header-text { flex:1; }
+  .header-conf {
+    font-family:'Space Mono',monospace; font-size:7.5px;
+    letter-spacing:3px; color:var(--teal); text-transform:uppercase; margin-bottom:3px;
+  }
+  .header-title {
+    font-family:'Cinzel',serif; font-size:18px;
+    font-weight:700; color:var(--gold);
+  }
+
+  /* ── MAIN CONTAINER ── */
+  .container {
+    width:100%; max-width:700px;
+    padding: 32px 20px 60px;
+    display: flex; flex-direction:column; gap:24px;
+  }
+
+  /* ── SCREENS ── */
+  .screen { display:none; }
+  .screen.active { display:flex; flex-direction:column; gap:20px; }
+
+  /* ── SIGN IN SCREEN ── */
+  .signin-card {
+    border:1px solid rgba(201,168,76,0.2);
+    border-top: 3px solid var(--gold);
+    background: var(--card);
+    padding: 40px 32px;
+    text-align:center;
+  }
+  .signin-icon {
+    width:64px; height:64px; border:1.5px solid rgba(201,168,76,0.3);
+    border-radius:50%; margin:0 auto 20px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px;
+  }
+  .signin-title {
+    font-family:'Cinzel',serif; font-size:18px;
+    color:var(--gold); margin-bottom:8px;
+  }
+  .signin-sub {
+    font-family:'Crimson Pro',serif; font-size:14px;
+    color:var(--silver); line-height:1.6; margin-bottom:28px;
+  }
+  .google-btn {
+    display:inline-flex; align-items:center; gap:12px;
+    background: white; color:#1f2937;
+    border:none; padding:12px 24px;
+    font-family:'Space Mono',monospace; font-size:12px;
+    font-weight:700; letter-spacing:1px;
+    cursor:pointer; transition:all 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .google-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.5); transform:translateY(-1px); }
+  .google-btn svg { flex-shrink:0; }
+  .signin-note {
+    font-family:'Space Mono',monospace; font-size:8px;
+    color:var(--silver); letter-spacing:1px; opacity:0.5; margin-top:16px;
+  }
+
+  /* ── LOADING SCREEN ── */
+  .loading-card {
+    border:1px solid rgba(201,168,76,0.15);
+    background:var(--card); padding:40px;
+    text-align:center;
+  }
+  .spinner {
+    width:36px; height:36px; border:2px solid rgba(201,168,76,0.2);
+    border-top-color:var(--gold); border-radius:50%;
+    animation: spin 0.8s linear infinite; margin:0 auto 16px;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-text {
+    font-family:'Space Mono',monospace; font-size:9px;
+    letter-spacing:2px; color:var(--silver); text-transform:uppercase;
+  }
+
+  /* ── ERROR SCREEN ── */
+  .error-card {
+    border:1px solid rgba(239,68,68,0.3);
+    border-left:3px solid var(--danger);
+    background:rgba(239,68,68,0.05); padding:24px 28px;
+  }
+  .error-title {
+    font-family:'Cinzel',serif; font-size:14px;
+    color:var(--danger); margin-bottom:6px;
+  }
+  .error-msg {
+    font-family:'Crimson Pro',serif; font-size:13.5px;
+    color:var(--silver); line-height:1.6; margin-bottom:16px;
+  }
+  .error-email {
+    font-family:'Space Mono',monospace; font-size:9px;
+    color:var(--silver); opacity:0.6; margin-bottom:16px;
+  }
+  .sign-out-link {
+    font-family:'Space Mono',monospace; font-size:9px;
+    letter-spacing:1px; color:var(--teal);
+    background:none; border:none; cursor:pointer;
+    text-decoration:underline; text-transform:uppercase;
+  }
+
+  /* ── LETTERS SCREEN ── */
+  .welcome-bar {
+    border:1px solid rgba(201,168,76,0.2);
+    border-left:3px solid var(--teal);
+    background:rgba(45,212,191,0.04);
+    padding:14px 20px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .welcome-left {}
+  .welcome-name {
+    font-family:'Cinzel',serif; font-size:14px; color:var(--white);
+  }
+  .welcome-email {
+    font-family:'Space Mono',monospace; font-size:8px;
+    color:var(--teal); letter-spacing:1px; margin-top:2px;
+  }
+  .sign-out-btn {
+    font-family:'Space Mono',monospace; font-size:8px;
+    letter-spacing:1px; color:var(--silver); text-transform:uppercase;
+    background:none; border:1px solid rgba(148,163,184,0.2);
+    padding:5px 10px; cursor:pointer; transition:all 0.2s;
+  }
+  .sign-out-btn:hover { color:var(--danger); border-color:rgba(239,68,68,0.3); }
+
+  /* letter card */
+  .letter-card {
+    border:1px solid rgba(201,168,76,0.18);
+    background:var(--card);
+  }
+  .letter-card-header {
+    padding:16px 20px;
+    display:flex; justify-content:space-between; align-items:center;
+    border-bottom:1px solid rgba(201,168,76,0.15);
+  }
+  .letter-type {
+    font-family:'Cinzel',serif; font-size:13px;
+    font-weight:600; color:var(--gold);
+  }
+  .letter-badge {
+    font-family:'Space Mono',monospace; font-size:7.5px;
+    letter-spacing:1.5px; color:var(--teal);
+    border:1px solid rgba(45,212,191,0.3);
+    padding:3px 8px; text-transform:uppercase;
+  }
+  .pdf-viewer {
+    width:100%; height:500px; border:none;
+    background:#000;
+    display:block;
+  }
+  .letter-actions {
+    padding:12px 20px;
+    display:flex; gap:12px; align-items:center;
+    border-top:1px solid rgba(201,168,76,0.1);
+  }
+  .download-btn {
+    font-family:'Space Mono',monospace; font-size:9px;
+    letter-spacing:1.5px; text-transform:uppercase; font-weight:700;
+    color:var(--ink); background:var(--gold);
+    border:none; padding:10px 20px; cursor:pointer;
+    transition:all 0.2s; text-decoration:none;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .download-btn:hover { background:var(--gold-lt); }
+  .open-btn {
+    font-family:'Space Mono',monospace; font-size:9px;
+    letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--teal); background:none;
+    border:1px solid rgba(45,212,191,0.3);
+    padding:10px 20px; cursor:pointer;
+    transition:all 0.2s; text-decoration:none;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .open-btn:hover { background:rgba(45,212,191,0.08); }
+  .viewer-note {
+    font-family:'Space Mono',monospace; font-size:7.5px;
+    color:var(--silver); opacity:0.5; letter-spacing:1px; margin-left:auto;
+  }
+
+  /* ── FOOTER ── */
+  .page-footer {
+    width:100%; max-width:700px; padding:0 20px 24px;
+    font-family:'Space Mono',monospace; font-size:7px;
+    color:var(--silver); letter-spacing:1px; opacity:0.4;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar"></div>
+
+<!-- HEADER -->
+<div class="site-header">
+  <div class="logo-ring">
+    <img src="LOGO_TEMP.jpeg" alt="Polaris MUN">
+  </div>
+  <div class="header-text">
+    <div class="header-conf">The Polaris MUN · Secure Document Portal</div>
+    <div class="header-title">My Letters</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ── SIGN IN SCREEN ── -->
+  <div id="screen-signin" class="screen active">
+    <div class="signin-card">
+      <div class="signin-icon">🔒</div>
+      <div class="signin-title">Access Your Letters</div>
+      <div class="signin-sub">
+        Sign in with the Google account associated with your Polaris MUN board membership to view your Letter of Appointment and Recommendation Letter.
+      </div>
+      <button class="google-btn" onclick="signIn()">
+        <svg width="18" height="18" viewBox="0 0 18 18">
+          <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+          <path fill="#FBBC05" d="M3.964 10.706c-.18-.54-.282-1.117-.282-1.706s.102-1.166.282-1.706V4.962H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.038l3.007-2.332z"/>
+          <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58z"/>
+        </svg>
+        Sign in with Google
+      </button>
+      <div class="signin-note">Only your account can access your letters · Secured by Google OAuth</div>
+    </div>
+  </div>
+
+  <!-- ── LOADING SCREEN ── -->
+  <div id="screen-loading" class="screen">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div class="loading-text">Verifying your account...</div>
+    </div>
+  </div>
+
+  <!-- ── ERROR SCREEN ── -->
+  <div id="screen-error" class="screen">
+    <div class="error-card">
+      <div class="error-title">No Letters Found</div>
+      <div class="error-msg">
+        No letters are associated with this Google account. If you believe this is an error, please contact the Polaris MUN founding team.
+      </div>
+      <div class="error-email" id="error-email-display"></div>
+      <button class="sign-out-link" onclick="signOut()">Sign out and try a different account</button>
+    </div>
+  </div>
+
+  <!-- ── LETTERS SCREEN ── -->
+  <div id="screen-letters" class="screen">
+    <div class="welcome-bar">
+      <div class="welcome-left">
+        <div class="welcome-name" id="user-name">Welcome</div>
+        <div class="welcome-email" id="user-email"></div>
+      </div>
+      <button class="sign-out-btn" onclick="signOut()">Sign Out</button>
+    </div>
+
+    <!-- Letter of Appointment -->
+    <div class="letter-card" id="card-loa" style="display:none;">
+      <div class="letter-card-header">
+        <div class="letter-type">Letter of Appointment</div>
+        <div class="letter-badge">The Polaris MUN 2026</div>
+      </div>
+      <iframe id="viewer-loa" class="pdf-viewer" src=""></iframe>
+      <div class="letter-actions">
+        <a id="download-loa" class="download-btn" href="#" download="Letter_of_Appointment_Polaris_MUN.pdf">
+          ↓ Download PDF
+        </a>
+        <a id="open-loa" class="open-btn" href="#" target="_blank">
+          ↗ Open in Drive
+        </a>
+        <span class="viewer-note">PDF · Polaris MUN 2026</span>
+      </div>
+    </div>
+
+    <!-- Recommendation Letter -->
+    <div class="letter-card" id="card-rec" style="display:none;">
+      <div class="letter-card-header">
+        <div class="letter-type">Recommendation Letter</div>
+        <div class="letter-badge">The Polaris MUN 2026</div>
+      </div>
+      <iframe id="viewer-rec" class="pdf-viewer" src=""></iframe>
+      <div class="letter-actions">
+        <a id="download-rec" class="download-btn" href="#" download="Recommendation_Letter_Polaris_MUN.pdf">
+          ↓ Download PDF
+        </a>
+        <a id="open-rec" class="open-btn" href="#" target="_blank">
+          ↗ Open in Drive
+        </a>
+        <span class="viewer-note">PDF · Polaris MUN 2026</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ADMIN SCREEN ── -->
+  <div id="screen-admin" class="screen">
+    <div class="welcome-bar" style="border-left-color:var(--gold);">
+      <div class="welcome-left">
+        <div class="welcome-name" style="color:var(--gold);">⚙ Admin — All Letters</div>
+        <div class="welcome-email" id="admin-email-display"></div>
+      </div>
+      <button class="sign-out-btn" onclick="signOut()">Sign Out</button>
+    </div>
+    <div id="admin-list" style="display:flex;flex-direction:column;gap:16px;"></div>
+  </div>
+
+</div>
+
+<div class="page-footer">The Polaris MUN © 2026 · Secure Document Portal · Access is personal and non-transferable</div>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+  let googleClient;
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + id).classList.add('active');
+  }
+
+  function driveViewUrl(fileId) {
+    return `https://drive.google.com/file/d/${fileId}/preview`;
+  }
+  function driveDownloadUrl(fileId) {
+    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+  }
+  function driveOpenUrl(fileId) {
+    return `https://drive.google.com/file/d/${fileId}/view`;
+  }
+
+  function buildLetterCard(personName, fileId, type) {
+    if (!fileId) return '';
+    return `
+      <div class="letter-card">
+        <div class="letter-card-header">
+          <div class="letter-type">${personName} — ${type}</div>
+          <div class="letter-badge">The Polaris MUN 2026</div>
+        </div>
+        <iframe class="pdf-viewer" src="${driveViewUrl(fileId)}"></iframe>
+        <div class="letter-actions">
+          <a class="download-btn" href="${driveDownloadUrl(fileId)}" download>↓ Download PDF</a>
+          <a class="open-btn" href="${driveOpenUrl(fileId)}" target="_blank">↗ Open in Drive</a>
+        </div>
+      </div>`;
+  }
+
+  function loadLetters(email, name) {
+    const lowerEmail = email.toLowerCase();
+
+    // ADMIN VIEW
+    if (lowerEmail === ADMIN_EMAIL.toLowerCase()) {
+      document.getElementById('admin-email-display').textContent = email;
+      const list = document.getElementById('admin-list');
+      list.innerHTML = '';
+      let count = 0;
+      for (const [memberEmail, entry] of Object.entries(LETTERS)) {
+        const memberName = entry.name || memberEmail;
+        let html = `<div style="border:1px solid rgba(201,168,76,0.15);padding:12px 16px;background:var(--card);">
+          <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--teal);margin-bottom:10px;">${memberEmail}</div>`;
+        if (entry.loa) html += buildLetterCard(memberName, entry.loa, 'Letter of Appointment');
+        if (entry.rec) html += buildLetterCard(memberName, entry.rec, 'Recommendation Letter');
+        html += `</div>`;
+        list.innerHTML += html;
+        count++;
+      }
+      if (count === 0) {
+        list.innerHTML = '<div style="font-family:\'Crimson Pro\',serif;font-size:14px;color:var(--silver);padding:20px;">No letters added yet. Fill in the LETTERS config in Letters.html.</div>';
+      }
+      showScreen('admin');
+      return;
+    }
+
+    // REGULAR USER VIEW
+    const entry = LETTERS[lowerEmail];
+    if (!entry) {
+      document.getElementById('error-email-display').textContent = 'Signed in as: ' + email;
+      showScreen('error');
+      return;
+    }
+
+    document.getElementById('user-name').textContent = name || email.split('@')[0];
+    document.getElementById('user-email').textContent = email;
+
+    // LOA
+    if (entry.loa) {
+      document.getElementById('viewer-loa').src   = driveViewUrl(entry.loa);
+      document.getElementById('download-loa').href = driveDownloadUrl(entry.loa);
+      document.getElementById('open-loa').href     = driveOpenUrl(entry.loa);
+      document.getElementById('card-loa').style.display = 'block';
+    }
+
+    // Recommendation
+    if (entry.rec) {
+      document.getElementById('viewer-rec').src   = driveViewUrl(entry.rec);
+      document.getElementById('download-rec').href = driveDownloadUrl(entry.rec);
+      document.getElementById('open-rec').href     = driveOpenUrl(entry.rec);
+      document.getElementById('card-rec').style.display = 'block';
+    }
+
+    showScreen('letters');
+  }
+
+  function handleCredentialResponse(response) {
+    showScreen('loading');
+    try {
+      // Decode JWT payload
+      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+      loadLetters(payload.email, payload.name);
+    } catch(e) {
+      showScreen('signin');
+      alert('Sign-in failed. Please try again.');
+    }
+  }
+
+  function signIn() {
+    if (!googleClient) {
+      googleClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'email profile',
+        callback: () => {},
+      });
+    }
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+      auto_select: false,
+    });
+    google.accounts.id.prompt();
+  }
+
+  function signOut() {
+    google.accounts.id.disableAutoSelect();
+    showScreen('signin');
+    // clear iframes
+    document.getElementById('viewer-loa').src = '';
+    document.getElementById('viewer-rec').src = '';
+    document.getElementById('card-loa').style.display = 'none';
+    document.getElementById('card-rec').style.display = 'none';
+  }
+
+  // Auto-init on load
+  window.addEventListener('load', () => {
+    if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com') {
+      // Dev mode — show setup notice
+      document.getElementById('screen-signin').innerHTML += `
+        <div style="border:1px solid rgba(251,191,36,0.3);border-left:3px solid #fbbf24;background:rgba(251,191,36,0.05);padding:14px 18px;margin-top:16px;">
+          <div style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:#fbbf24;margin-bottom:6px;">SETUP REQUIRED</div>
+          <div style="font-family:'Crimson Pro',serif;font-size:13px;color:#e2e8f0;line-height:1.6;">Open <strong>Letters.html</strong> and replace <code>YOUR_GOOGLE_CLIENT_ID_HERE</code> with your actual Google OAuth Client ID, then fill in the email → Drive file ID table.</div>
+        </div>`;
+      return;
+    }
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+      auto_select: true,
+    });
+  });
+</script>
+</body>
+</html>
