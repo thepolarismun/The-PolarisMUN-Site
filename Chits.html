@@ -15,6 +15,7 @@
 <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-auth-compat.js"></script>
 
+
 <script>
 const CONFIG = {
   GOOGLE_CLIENT_ID: '155440301105-8l928akjmurv0d3v39sse19n34gqtpeh.apps.googleusercontent.com',
@@ -23,6 +24,7 @@ const CONFIG = {
 
   USE_FIREBASE: true,
 
+  // Firebase Realtime Database config
   FIREBASE: {
     apiKey: 'AIzaSyDpHxAhym6btvCYluL14qqF2WZ4ZYOuhJs',
     authDomain: 'the-polaris-mun-71844.firebaseapp.com',
@@ -35,23 +37,31 @@ const CONFIG = {
   DIRECTIVES_ALWAYS: ['MSC'],
   DIRECTIVES_TOGGLE: ['DISEC'],
 
+  // EB Google accounts — map email to committee + role
   EB_ACCOUNTS: {
     'akshaypro28@gmail.com': { committee: 'MSC', role: 'Chair' },
-    'aarjavjain2020@gmail.com': { committee: 'DISEC', role: 'Chair' },
+    'aarjav2020@gmail.com': { committee: 'DISEC', role: 'Chair' },
     'darshprakash1101@gmail.com': { committee: 'UNGA', role: 'Chair' },
-    'saanvie.verma27@gmail.com': { committee: 'UNHRC', role: 'Chair' },
+    'yashmoh1129@gmail.com': { committee: 'DISEC', role: 'Vice Chair' },
     'arorareyansh16@gmail.com': { committee: 'MSC', role: 'Vice Chair' },
+
+    // Add each committee EB here. Marker Assignments uses these roles.
+    // 'mscvice@gmail.com': { committee: 'MSC', role: 'Vice Chair' },
+    // 'mscrapporteur@gmail.com': { committee: 'MSC', role: 'Rapporteur' },
+    // 'disecvice@gmail.com': { committee: 'DISEC', role: 'Vice Chair' },
+    // 'disecrapporteur@gmail.com': { committee: 'DISEC', role: 'Rapporteur' },
+    // 'ungavice@gmail.com': { committee: 'UNGA', role: 'Vice Chair' },
+    // 'ungarapporteur@gmail.com': { committee: 'UNGA', role: 'Rapporteur' },
   },
 };
+</script>
 
-if (!firebase.apps.length) {
-  firebase.initializeApp(CONFIG.FIREBASE);
-}
+// Firebase Init
+firebase.initializeApp(CONFIG.FIREBASE);
 
 const db = firebase.database();
 const auth = firebase.auth();
 </script>
-
 <style>
 :root {
   --ink:    #0a0d1a;
@@ -589,9 +599,9 @@ function goEB() {
 
 
 function isAdminEmail(email) {
-  const normalized = String(email || '').trim().toLowerCase();
+  const normalized = (email || '').toLowerCase();
   const adminList = CONFIG.ADMIN_EMAILS || [CONFIG.ADMIN_EMAIL];
-  return adminList.map(e => String(e || '').trim().toLowerCase()).includes(normalized);
+  return adminList.map(e => e.toLowerCase()).includes(normalized);
 }
 
 function isChairRole(role) {
@@ -636,12 +646,7 @@ function handleLoginIdentity(email, name) {
   }
 
   // EB?
-  const normalizedAccounts = {};
-  Object.entries(CONFIG.EB_ACCOUNTS || {}).forEach(([accountEmail, data]) => {
-    normalizedAccounts[String(accountEmail).trim().toLowerCase()] = data;
-  });
-
-  const ebEntry = normalizedAccounts[email];
+  const ebEntry = CONFIG.EB_ACCOUNTS[email];
   if (ebEntry) {
     STATE.role = 'eb';
     STATE.eb = { email, name, committee: ebEntry.committee, role: ebEntry.role };
@@ -655,44 +660,12 @@ function handleLoginIdentity(email, name) {
   notify('This Google account is not registered as EB/admin.', true);
 }
 
-function decodeJwtPayload(token) {
-  const parts = String(token || '').split('.');
-  if (parts.length < 2) {
-    throw new Error('Invalid Google credential format.');
-  }
-
-  const base64Url = parts[1];
-  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
-
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return JSON.parse(new TextDecoder('utf-8').decode(bytes));
-}
-
 function handleEBLogin(response) {
   try {
-    if (!response || !response.credential) {
-      notify('No Google credential received.', true);
-      return;
-    }
-
-    const payload = decodeJwtPayload(response.credential);
-    console.log('Google login payload email:', payload.email);
-
-    if (!payload.email) {
-      notify('Google login did not return an email.', true);
-      return;
-    }
-
-    handleLoginIdentity(payload.email, payload.name || payload.email);
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    handleLoginIdentity(payload.email, payload.name);
   } catch(e) {
-    console.error('Google login decode error:', e);
-    notify('Login failed: ' + (e.message || 'unknown error'), true);
+    notify('Login failed. Try again.', true);
   }
 }
 
@@ -1557,68 +1530,6 @@ function renderEBStats(allChits) {
 }
 
 // ─── ADMIN ─────────────────────────────────────────────────────
-
-let ADMIN_ACTIVE_COMMITTEE = null;
-
-function escapeAdminText(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function renderAdminChitViewer(activeCommittee) {
-  ADMIN_ACTIVE_COMMITTEE = activeCommittee || ADMIN_ACTIVE_COMMITTEE || CONFIG.COMMITTEES[0];
-
-  const tabsEl = document.getElementById('admin-committee-tabs');
-  const viewEl = document.getElementById('admin-chit-view');
-  if (!tabsEl || !viewEl) return;
-
-  tabsEl.innerHTML = CONFIG.COMMITTEES.map(c => `
-    <button class="tab ${c === ADMIN_ACTIVE_COMMITTEE ? 'active' : ''}" onclick="renderAdminChitViewer('${c}')">${c}</button>
-  `).join('');
-
-  viewEl.innerHTML = '<div class="empty-state"><div class="es-icon">⏳</div><div class="es-text">Loading chits...</div></div>';
-
-  getChits(ADMIN_ACTIVE_COMMITTEE, chits => {
-    const all = Object.values(chits || {}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
-
-    if (!all.length) {
-      viewEl.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No chits in this committee</div></div>';
-      return;
-    }
-
-    viewEl.innerHTML = all.map(c => {
-      const col = { poi:'teal', d2d:'indigo', sub:'gold', covert:'purple', overt:'amber' }[c.type] || 'silver';
-      const typeLabel = escapeAdminText((c.type || '').toUpperCase());
-      const from = escapeAdminText(c.from || 'Unknown');
-      const portfolio = escapeAdminText(c.portfolio || '');
-      const to = escapeAdminText(c.to || '');
-      const msg = escapeAdminText(c.message || '');
-      const response = escapeAdminText(c.response || '');
-      const time = c.timestamp ? new Date(c.timestamp).toLocaleString() : 'No time';
-
-      return `<div class="chit-item" style="border-left:3px solid var(--${col});">
-        <div class="chit-item-header">
-          <span class="badge badge-${col}">${typeLabel}</span>
-          <span class="chit-from">${from}</span>
-          ${portfolio ? `<span class="badge badge-silver">${portfolio}</span>` : ''}
-          ${to ? `<span class="chit-to">→ ${to}</span>` : ''}
-          ${c.acknowledged ? `<span class="badge badge-green">✓ ACK</span>` : `<span class="badge badge-silver">PENDING</span>`}
-          ${c.marked ? `<span class="badge badge-gold">MARKED</span>` : ''}
-          ${c.reported ? `<span class="badge badge-danger">REPORTED</span>` : ''}
-        </div>
-        <div class="chit-body">${msg}</div>
-        ${response ? `<div class="response-box"><div class="response-label">EB Response</div><div class="response-text">${response}</div></div>` : ''}
-        <div class="chit-time">${time}</div>
-      </div>`;
-    }).join('');
-  });
-}
-
-
 function loadAdminScreen() {
   const el = document.getElementById('admin-overview');
   el.innerHTML = '<div class="empty-state"><div class="es-icon">📊</div><div class="es-text">Loading...</div></div>';
