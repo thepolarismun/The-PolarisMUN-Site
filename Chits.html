@@ -1004,7 +1004,11 @@ function renderEBChitItem(c, tabType) {
   const assignments = getMarkerAssignments(STATE.eb.committee);
   const markerConfig = normalizeMarkerConfig(assignments[c.type]);
   const assignedMarkers = markerConfig.markers || [];
-  const canMark = markable && (!assignedMarkers.length || assignedMarkers.includes(STATE.eb.email));
+  const markerScoresObj = c.markerScores || {};
+  const existingMarkers = Object.keys(markerScoresObj);
+  const firstMarkerEmail = existingMarkers[0] || null;
+  const lockedByOtherMarker = markerConfig.once && firstMarkerEmail && firstMarkerEmail !== STATE.eb.email;
+  const canMark = markable && !lockedByOtherMarker && (!assignedMarkers.length || assignedMarkers.includes(STATE.eb.email));
   const crit = markable ? ensureCriteriaFor(STATE.eb.committee, c.type) : [];
   const myScores = (c.markerScores && c.markerScores[STATE.eb.email]) ? c.markerScores[STATE.eb.email] : {};
 
@@ -1019,6 +1023,8 @@ function renderEBChitItem(c, tabType) {
       markerConfig.aggregation === 'complete_average' ? 'Complete Average' :
       'Average';
 
+    const onceLabel = markerConfig.once ? ' · single-marker lock enabled' : '';
+
     const finalMarksHtml = c.marked ? `<div class="mark-grid" style="margin-top:8px;">${
       crit.map(cr=>{
         const key = cr.name.replace(/\s/g,'_');
@@ -1030,7 +1036,7 @@ function renderEBChitItem(c, tabType) {
       }).join('')
     }</div>` : '';
 
-    const markerNote = `<div class="form-hint">Assigned markers: ${markerNames} · Calculation: ${calcLabel}</div>`;
+    const markerNote = `<div class="form-hint">Assigned markers: ${markerNames} · Calculation: ${calcLabel}${onceLabel}</div>`;
 
     if (canMark) {
       marksHtml = `<div class="mark-grid" id="marks-${c.id}">
@@ -1049,9 +1055,13 @@ function renderEBChitItem(c, tabType) {
         ${finalMarksHtml}
       </div>`;
     } else {
+      const lockText = lockedByOtherMarker
+        ? `This chit has already been marked by ${firstMarkerEmail.split('@')[0]}. Single-marker mode is enabled.`
+        : `You are not assigned to mark this category.`;
+
       marksHtml = `<div class="response-box" style="margin-top:8px;">
         <div class="response-label">Marker Assignment</div>
-        <div class="response-text">You are not assigned to mark this category. ${markerNote}</div>
+        <div class="response-text">${lockText} ${markerNote}</div>
       </div>${finalMarksHtml}`;
     }
 
@@ -1129,6 +1139,14 @@ function submitMarks(id) {
     }
 
     const markerScores = chit.markerScores || {};
+    const existingMarkers = Object.keys(markerScores);
+    const firstMarkerEmail = existingMarkers[0] || null;
+
+    if (markerConfig.once && firstMarkerEmail && firstMarkerEmail !== email) {
+      notify(`This chit was already marked by ${firstMarkerEmail.split('@')[0]}.`, true);
+      return;
+    }
+
     if (!markerScores[email]) markerScores[email] = {};
 
     crit.forEach(cr => {
@@ -1191,11 +1209,18 @@ function getMarkerAssignments(committee) {
 
 function normalizeMarkerConfig(config) {
   config = config || {};
+
   let markers = config.markers;
   if (!Array.isArray(markers)) markers = [];
+
   let aggregation = config.aggregation || 'average';
   if (!['average', 'sum', 'complete_average'].includes(aggregation)) aggregation = 'average';
-  return { markers, aggregation };
+
+  // once=false means every selected marker may mark.
+  // once=true means the chit locks after the first assigned marker submits marks.
+  let once = config.once === true;
+
+  return { markers, aggregation, once };
 }
 
 function saveMarkerAssignments(committee, data) {
@@ -1334,6 +1359,12 @@ function renderMarkerModePopup(types, assignments) {
                 <option value="sum" ${current.aggregation === 'sum' ? 'selected' : ''}>Absolute / Sum marking</option>
                 <option value="complete_average" ${current.aggregation === 'complete_average' ? 'selected' : ''}>Complete average across all markers and chits</option>
               </select>
+
+              <label style="display:flex;align-items:center;gap:10px;margin-top:12px;font-family:'Space Mono',monospace;font-size:9px;color:var(--mist);cursor:pointer;">
+                <input type="checkbox" id="setup-once-${type}" ${current.once ? 'checked' : ''}>
+                <span>Only one selected marker needs to mark each chit</span>
+              </label>
+              <div class="form-hint">Example: if Chair and Vice are selected, whichever one marks first locks that chit from being marked again by the other.</div>
             </div>`;
         }).join('')}
 
@@ -1353,6 +1384,7 @@ function saveMarkerModeSetup() {
     const current = normalizeMarkerConfig(assignments[type]);
     const selected = document.getElementById(`setup-mode-${type}`)?.value || current.aggregation || 'average';
     current.aggregation = ['average','sum','complete_average'].includes(selected) ? selected : 'average';
+    current.once = document.getElementById(`setup-once-${type}`)?.checked || false;
     assignments[type] = current;
     ensureCriteriaFor(committee, type);
   });
@@ -1371,6 +1403,7 @@ function resetMarkerModeSetup() {
   types.forEach(type => {
     const current = normalizeMarkerConfig(assignments[type]);
     delete current.aggregation;
+    delete current.once;
     assignments[type] = current;
   });
 
@@ -1445,6 +1478,14 @@ function renderMarkerAssignments() {
         </select>
         <div class="form-hint">This is based on the first popup. You can still adjust it here for this type.</div>
       </div>
+
+      <div style="margin-top:14px;">
+        <label style="display:flex;align-items:center;gap:10px;font-family:'Space Mono',monospace;font-size:9px;color:var(--mist);cursor:pointer;">
+          <input type="checkbox" ${current.once ? 'checked' : ''} onchange="setSingleMarkerMode('${type}', this.checked)">
+          <span>Only one selected marker needs to mark each chit</span>
+        </label>
+        <div class="form-hint">When enabled, the first assigned marker to save marks locks that chit for this category.</div>
+      </div>
     </div>`;
   }).join('') + `
     <div class="card card-teal">
@@ -1498,6 +1539,25 @@ function setMarkerAggregation(type, value) {
   assignments[type] = current;
   saveMarkerAssignments(committee, assignments);
   notify('Marking type updated.');
+}
+
+
+function setSingleMarkerMode(type, value) {
+  if (!canConfigureMarkers()) {
+    notify('Only the chairperson can change marker rules.', true);
+    return;
+  }
+
+  const committee = STATE.eb.committee;
+  const assignments = getMarkerAssignments(committee) || {};
+  const current = normalizeMarkerConfig(assignments[type]);
+
+  current.once = !!value;
+  assignments[type] = current;
+
+  saveMarkerAssignments(committee, assignments);
+  notify(value ? 'Single-marker mode enabled.' : 'Multi-marker mode enabled.');
+  renderMarkerAssignments();
 }
 
 // ─── STATS ─────────────────────────────────────────────────────
