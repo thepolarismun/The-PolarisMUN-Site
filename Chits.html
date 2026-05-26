@@ -1000,29 +1000,37 @@ function renderEBChitItem(c, tabType) {
   const reportBtn   = tabType==='d2d' && !c.reported ? `<button class="btn-danger btn-sm" onclick="reportChit('${c.id}')">Report</button>` : '';
   const ackBtn      = !c.acknowledged ? `<button class="btn-secondary btn-sm" onclick="acknowledgeChit('${c.id}')">Acknowledge</button>` : '';
 
-  const crit = getCriteriaFor(STATE.eb.committee, c.type);
-  const assignments = getMarkerAssignments(STATE.eb.committee);
-  const markerConfig = assignments[c.type] || { markers: [], aggregation: 'average' };
-  const assignedMarkers = markerConfig.markers || [];
-  const canMark = !assignedMarkers.length || assignedMarkers.includes(STATE.eb.email);
   const markable = ['poi','sub','covert','overt'].includes(c.type);
+  const assignments = getMarkerAssignments(STATE.eb.committee);
+  const markerConfig = normalizeMarkerConfig(assignments[c.type]);
+  const assignedMarkers = markerConfig.markers || [];
+  const canMark = markable && (!assignedMarkers.length || assignedMarkers.includes(STATE.eb.email));
+  const crit = markable ? ensureCriteriaFor(STATE.eb.committee, c.type) : [];
   const myScores = (c.markerScores && c.markerScores[STATE.eb.email]) ? c.markerScores[STATE.eb.email] : {};
 
   let marksHtml = '';
-  if (markable && crit.length) {
+  if (markable) {
     const markerNames = assignedMarkers.length
       ? assignedMarkers.map(m => m.split('@')[0]).join(', ')
       : 'Any EB member';
+
+    const calcLabel =
+      markerConfig.aggregation === 'sum' ? 'Absolute / Sum' :
+      markerConfig.aggregation === 'complete_average' ? 'Complete Average' :
+      'Average';
 
     const finalMarksHtml = c.marked ? `<div class="mark-grid" style="margin-top:8px;">${
       crit.map(cr=>{
         const key = cr.name.replace(/\s/g,'_');
         const val = c.marks?.[key] ?? 0;
-        return `<div class="mark-row"><span class="mark-name">Final · ${cr.name}</span><span class="stats-val">${val}</span><span class="mark-max">/ ${markerConfig.aggregation === 'sum' ? cr.max * Math.max(1, Object.keys(c.markerScores || {}).length) : cr.max}</span><span class="mark-type ${cr.mode}">${cr.mode==='avg'?'AVG':'TOT'}</span></div>`;
+        const maxShown = markerConfig.aggregation === 'sum'
+          ? cr.max * Math.max(1, Object.keys(c.markerScores || {}).length)
+          : cr.max;
+        return `<div class="mark-row"><span class="mark-name">Final · ${cr.name}</span><span class="stats-val">${val}</span><span class="mark-max">/ ${maxShown}</span><span class="mark-type ${cr.mode}">${cr.mode==='avg'?'AVG':'TOT'}</span></div>`;
       }).join('')
     }</div>` : '';
 
-    const markerNote = `<div class="form-hint">Assigned markers: ${markerNames} · Calculation: ${markerConfig.aggregation === 'sum' ? 'Absolute/Sum' : 'Average'}</div>`;
+    const markerNote = `<div class="form-hint">Assigned markers: ${markerNames} · Calculation: ${calcLabel}</div>`;
 
     if (canMark) {
       marksHtml = `<div class="mark-grid" id="marks-${c.id}">
@@ -1052,7 +1060,6 @@ function renderEBChitItem(c, tabType) {
     }
   }
 
-  // Response for directives
   let responseHtml = '';
   if (tabType==='directive') {
     if (c.response) {
@@ -1112,9 +1119,9 @@ function submitMarks(id) {
     const chit = chits[id];
     if (!chit) return;
 
-    const crit = getCriteriaFor(committee, chit.type);
+    const crit = ensureCriteriaFor(committee, chit.type);
     const assignments = getMarkerAssignments(committee);
-    const markerConfig = assignments[chit.type] || { markers: [], aggregation: 'average' };
+    const markerConfig = normalizeMarkerConfig(assignments[chit.type]);
 
     if (markerConfig.markers.length && !markerConfig.markers.includes(email)) {
       notify('You are not assigned to mark this category.', true);
@@ -1127,7 +1134,7 @@ function submitMarks(id) {
     crit.forEach(cr => {
       const key = cr.name.replace(/\s/g,'_');
       const val = parseFloat(document.getElementById(`mk_${id}_${key}`)?.value || 0);
-      markerScores[email][key] = Math.max(0, Math.min(cr.max, val));
+      markerScores[email][key] = Math.max(0, Math.min(Number(cr.max || 10), val));
     });
 
     const finalMarks = {};
@@ -1222,6 +1229,15 @@ function getCriteriaFor(committee, type) {
   return stored ? JSON.parse(stored) : [];
 }
 
+function ensureCriteriaFor(committee, type) {
+  let crit = getCriteriaFor(committee, type);
+  if (!crit.length && ['poi','sub','covert','overt'].includes(type)) {
+    crit = [{ name: 'Score', max: 10, mode: 'avg' }];
+    saveCriteriaFor(committee, type, crit);
+  }
+  return crit;
+}
+
 function saveCriteriaFor(committee, type, list) {
   localStorage.setItem(`criteria_${committee}_${type}`, JSON.stringify(list));
   if (STATE.db) {
@@ -1294,6 +1310,74 @@ function saveCriteria(type) {
 }
 
 
+function markerModeSetupNeeded(types, assignments) {
+  return types.some(type => !assignments[type] || !assignments[type].aggregation);
+}
+
+function renderMarkerModePopup(types, assignments) {
+  const committee = STATE.eb.committee;
+  return `
+    <div style="position:fixed;inset:0;background:rgba(10,13,26,0.82);backdrop-filter:blur(8px);z-index:300;display:flex;align-items:center;justify-content:center;padding:18px;">
+      <div class="card card-gold" style="width:min(620px,96vw);max-height:88vh;overflow:auto;">
+        <div class="card-title" style="font-size:16px;">Set Marking Calculation First</div>
+        <div class="card-sub">Choose average or absolute marking for each chit/directive type</div>
+        <div class="form-hint" style="margin-bottom:14px;">Directives appear only for MSC and DISEC chairpersons.</div>
+
+        ${types.map(type => {
+          const current = normalizeMarkerConfig(assignments[type]);
+          return `
+            <div class="card" style="margin-bottom:10px;padding:14px;">
+              <div class="card-title">${prettyType(type)}</div>
+              <label class="form-label">Calculation Method</label>
+              <select class="form-select" id="setup-mode-${type}">
+                <option value="average" ${current.aggregation === 'average' ? 'selected' : ''}>Average marking</option>
+                <option value="sum" ${current.aggregation === 'sum' ? 'selected' : ''}>Absolute / Sum marking</option>
+                <option value="complete_average" ${current.aggregation === 'complete_average' ? 'selected' : ''}>Complete average across all markers and chits</option>
+              </select>
+            </div>`;
+        }).join('')}
+
+        <button class="btn-primary" onclick="saveMarkerModeSetup()">Continue to Marker Assignment</button>
+      </div>
+    </div>`;
+}
+
+function saveMarkerModeSetup() {
+  if (!canConfigureMarkers()) return;
+
+  const committee = STATE.eb.committee;
+  const types = getMarkableTypesForCommittee(committee);
+  const assignments = getMarkerAssignments(committee) || {};
+
+  types.forEach(type => {
+    const current = normalizeMarkerConfig(assignments[type]);
+    const selected = document.getElementById(`setup-mode-${type}`)?.value || current.aggregation || 'average';
+    current.aggregation = ['average','sum','complete_average'].includes(selected) ? selected : 'average';
+    assignments[type] = current;
+    ensureCriteriaFor(committee, type);
+  });
+
+  saveMarkerAssignments(committee, assignments);
+  renderMarkerAssignments();
+  notify('Marking calculation saved.');
+}
+
+function resetMarkerModeSetup() {
+  if (!canConfigureMarkers()) return;
+  const committee = STATE.eb.committee;
+  const assignments = getMarkerAssignments(committee) || {};
+  const types = getMarkableTypesForCommittee(committee);
+
+  types.forEach(type => {
+    const current = normalizeMarkerConfig(assignments[type]);
+    delete current.aggregation;
+    assignments[type] = current;
+  });
+
+  saveMarkerAssignments(committee, assignments);
+  renderMarkerAssignments();
+}
+
 function renderMarkerAssignments() {
   const committee = STATE.eb?.committee;
   const el = document.getElementById('eb-tab-marker-assignments');
@@ -1318,19 +1402,28 @@ function renderMarkerAssignments() {
     return;
   }
 
+  if (markerModeSetupNeeded(types, assignments)) {
+    el.innerHTML = renderMarkerModePopup(types, assignments);
+    return;
+  }
+
   el.innerHTML = `
     <div class="card card-gold">
       <div class="card-title">Chairperson Marker Control</div>
-      <div class="card-sub">Choose who marks each chit/directive type · maximum 3 markers</div>
+      <div class="card-sub">Assign markers after choosing average / absolute marking · maximum 3 markers per type</div>
       <div class="form-hint">If no marker is selected for a category, any EB of this committee can mark it.</div>
     </div>
   ` + types.map(type => {
     const current = normalizeMarkerConfig(assignments[type]);
+    const calcLabel =
+      current.aggregation === 'sum' ? 'Absolute / Sum marking' :
+      current.aggregation === 'complete_average' ? 'Complete Average marking' :
+      'Average marking';
 
     return `
     <div class="card" style="margin-bottom:16px;">
       <div class="card-title">${prettyType(type)}</div>
-      <div class="card-sub">Assign Chair / Vice Chair / Rapporteur and choose score calculation</div>
+      <div class="card-sub">${calcLabel}</div>
 
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
         ${members.map(member => {
@@ -1344,16 +1437,22 @@ function renderMarkerAssignments() {
       </div>
 
       <div style="margin-top:16px;">
-        <div class="form-label">Multiple Marker Calculation</div>
+        <div class="form-label">Marking Type</div>
         <select class="form-select" onchange="setMarkerAggregation('${type}', this.value)">
-          <option value="average" ${current.aggregation==='average'?'selected':''}>Average per chit</option>
-          <option value="sum" ${current.aggregation==='sum'?'selected':''}>Absolute / Sum of all selected markers</option>
+          <option value="average" ${current.aggregation==='average'?'selected':''}>Average marking</option>
+          <option value="sum" ${current.aggregation==='sum'?'selected':''}>Absolute / Sum marking</option>
           <option value="complete_average" ${current.aggregation==='complete_average'?'selected':''}>Complete Average across all markers and chits</option>
         </select>
-        <div class="form-hint">Complete Average = total raw marks ÷ total marker entries. Example: 5 POIs × 3 markers = divide by 15.</div>
+        <div class="form-hint">This is based on the first popup. You can still adjust it here for this type.</div>
       </div>
     </div>`;
-  }).join('');
+  }).join('') + `
+    <div class="card card-teal">
+      <div class="card-title">Alter Average / Absolute Setup</div>
+      <div class="card-sub">Re-open the first popup and change marking calculation for all types</div>
+      <button class="btn-secondary" onclick="resetMarkerModeSetup()">Alter Average / Absolute</button>
+    </div>
+  `;
 }
 
 function toggleMarker(type, email, checked) {
@@ -1398,16 +1497,15 @@ function setMarkerAggregation(type, value) {
 
   assignments[type] = current;
   saveMarkerAssignments(committee, assignments);
-  notify('Aggregation updated.');
+  notify('Marking type updated.');
 }
-
 
 // ─── STATS ─────────────────────────────────────────────────────
 
 function calculateStatsValueForCriterion(chits, criterion, type, committee) {
   const key = criterion.name.replace(/\s/g,'_');
   const assignments = getMarkerAssignments(committee);
-  const markerConfig = assignments[type] || { markers: [], aggregation: 'average' };
+  const markerConfig = normalizeMarkerConfig(assignments[type]);
 
   if (markerConfig.aggregation === 'complete_average') {
     let rawTotal = 0;
@@ -1446,7 +1544,7 @@ function calculateStatsValueForCriterion(chits, criterion, type, committee) {
 function getStatsCountForCriterion(chits, criterion, type, committee) {
   const key = criterion.name.replace(/\s/g,'_');
   const assignments = getMarkerAssignments(committee);
-  const markerConfig = assignments[type] || { markers: [], aggregation: 'average' };
+  const markerConfig = normalizeMarkerConfig(assignments[type]);
 
   if (markerConfig.aggregation !== 'complete_average') {
     return chits.length;
