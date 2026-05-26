@@ -33,8 +33,10 @@ const ADMIN_EMAIL = 'akshaypro28@gmail.com';
 
 const LETTERS = {
   'darshprakash1101@gmail.com': { name: 'Darsh Prakash', loa: '1iM8bbJIi6DvsKzs786Li6QYxQ1qqtPRd', rec: null },
+  'yashmoh1129@gmail.com': { name: 'Aayush Srivastava', loa: 'aayush_srivastava_loa.pdf', rec: null },
+  'arorareyansh16@gmail.com': { name: 'Reyansh Arora', loa: 'reyansh_arora_loa.pdf', rec: null },
   // add more below:
-  // 'boardmember@gmail.com': { name: 'Full Name', loa: 'FILE_ID', rec: 'FILE_ID' },
+  // 'boardmember@gmail.com': { name: 'Full Name', loa: 'FILE_ID_OR_LOCAL_FILE', rec: 'FILE_ID_OR_LOCAL_FILE' },
 };
 </script>
 <!-- ===================================================== -->
@@ -399,14 +401,17 @@ const LETTERS = {
     document.getElementById('screen-' + id).classList.add('active');
   }
 
+  function isLocalLetter(fileId) {
+    return /\.(pdf|html?)($|[?#])/i.test(fileId) || fileId.includes('/');
+  }
   function driveViewUrl(fileId) {
-    return `https://drive.google.com/file/d/${fileId}/preview`;
+    return isLocalLetter(fileId) ? fileId : `https://drive.google.com/file/d/${fileId}/preview`;
   }
   function driveDownloadUrl(fileId) {
-    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    return isLocalLetter(fileId) ? fileId : `https://drive.google.com/uc?export=download&id=${fileId}`;
   }
   function driveOpenUrl(fileId) {
-    return `https://drive.google.com/file/d/${fileId}/view`;
+    return isLocalLetter(fileId) ? fileId : `https://drive.google.com/file/d/${fileId}/view`;
   }
 
   function buildLetterCard(personName, fileId, type) {
